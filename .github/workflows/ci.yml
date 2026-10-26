@@ -1,0 +1,63 @@
+name: Build, Test and Package
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Environment
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          uname -m
+      - name: Install pinned XcodeGen
+        run: |
+          curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip
+          echo "a760b4bf97460341316a2c00d8c87b2946c6c2729eb57e9a72abb3ef7bc0ef82  /tmp/xcodegen.zip" | shasum -a 256 -c -
+          ditto -x -k /tmp/xcodegen.zip /tmp/xcodegen
+          echo "/tmp/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Generate and inspect project
+        run: |
+          xcodegen generate --spec project.yml
+          xcodebuild -list -project AO3Downloader.xcodeproj
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
+            -resultBundlePath "$PWD/build/TestResults.xcresult" CODE_SIGNING_ALLOWED=NO test | tee build/test.log
+      - name: Build release
+        run: |
+          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO build
+          Scripts/verify-build.sh build/DerivedData/Build/Products/Release/AO3Downloader.app
+      - name: Package
+        run: Scripts/package-app.sh build/DerivedData/Build/Products/Release/AO3Downloader.app build/artifacts
+      - name: Upload products
+        uses: actions/upload-artifact@v4
+        with:
+          name: AO3Downloader-${{ github.sha }}
+          path: build/artifacts/*
+          retention-days: 14
+      - name: Upload test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics-${{ github.sha }}
+          path: |
+            build/TestResults.xcresult
+            build/test.log
+          retention-days: 7
+

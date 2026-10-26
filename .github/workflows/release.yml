@@ -1,0 +1,31 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned XcodeGen
+        run: |
+          curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip
+          echo "a760b4bf97460341316a2c00d8c87b2946c6c2729eb57e9a72abb3ef7bc0ef82  /tmp/xcodegen.zip" | shasum -a 256 -c -
+          ditto -x -k /tmp/xcodegen.zip /tmp/xcodegen
+          echo "/tmp/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Test and build once
+        run: |
+          xcodegen generate --spec project.yml
+          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" CODE_SIGNING_ALLOWED=NO test build
+          Scripts/verify-build.sh build/DerivedData/Build/Products/Release/AO3Downloader.app
+          Scripts/package-app.sh build/DerivedData/Build/Products/Release/AO3Downloader.app build/artifacts
+      - name: Publish unsigned release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          body: "Unsigned personal build. macOS may require Control-click → Open on first launch. Never disable Gatekeeper globally."
+          files: build/artifacts/*
+
