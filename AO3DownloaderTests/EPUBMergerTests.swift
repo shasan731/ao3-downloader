@@ -21,7 +21,8 @@ final class EPUBMergerTests: XCTestCase {
         try EPUBMerger().merge(series: series, inputs: inputs, to: output)
         try DownloadValidator().validate(file: output, format: .epub)
         guard let archive = Archive(url: output, accessMode: .read) else { return XCTFail("Could not reopen merged EPUB") }
-        XCTAssertEqual(archive.first?.path, "mimetype")
+        var iterator = archive.makeIterator()
+        XCTAssertEqual(iterator.next()?.path, "mimetype")
 
         let extracted = root.appendingPathComponent("merged", isDirectory: true)
         try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: false)
