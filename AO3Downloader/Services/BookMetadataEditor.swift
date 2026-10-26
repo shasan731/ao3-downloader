@@ -44,15 +44,33 @@ struct BookMetadataEditor: Sendable {
         try fileManager.unzipItem(at: source, to: root)
 
         let delegate = MetadataContainerDelegate()
-        guard let parser = XMLParser(contentsOf: root.appendingPathComponent("META-INF/container.xml")) else {
+        let directContainer = root.appendingPathComponent("META-INF/container.xml")
+        var containerURL: URL? = fileManager.fileExists(atPath: directContainer.path) ? directContainer : nil
+        if containerURL == nil {
+            let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
+                                                    options: [.skipsHiddenFiles])
+            while let candidate = enumerator?.nextObject() as? URL {
+                if candidate.lastPathComponent == "container.xml",
+                   candidate.deletingLastPathComponent().lastPathComponent == "META-INF" {
+                    containerURL = candidate
+                    break
+                }
+            }
+        }
+        guard let containerURL else { throw AO3Error.mergeFailed("the EPUB has no readable container") }
+        let epubRoot = containerURL.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL
+        guard epubRoot.path.hasPrefix(root.standardizedFileURL.path) else {
+            throw AO3Error.mergeFailed("the EPUB container escapes its extraction directory")
+        }
+        guard let parser = XMLParser(contentsOf: containerURL) else {
             throw AO3Error.mergeFailed("the EPUB has no readable container")
         }
         parser.delegate = delegate
         guard parser.parse(), let packagePath = delegate.rootfile, safeRelativePath(packagePath) else {
             throw AO3Error.mergeFailed("the EPUB package path is invalid")
         }
-        let packageURL = root.appendingPathComponent(packagePath).standardizedFileURL
-        guard packageURL.path.hasPrefix(root.standardizedFileURL.path + "/"),
+        let packageURL = epubRoot.appendingPathComponent(packagePath).standardizedFileURL
+        guard packageURL.path.hasPrefix(epubRoot.path + "/"),
               var package = try? String(contentsOf: packageURL, encoding: .utf8) else {
             throw AO3Error.mergeFailed("the EPUB package is unreadable")
         }
@@ -94,7 +112,7 @@ struct BookMetadataEditor: Sendable {
             package = insertAfterOpeningTag("spine", content: "<itemref idref=\"ao3downloader-cover-page\"/>", in: package)
         }
         try Data(package.utf8).write(to: packageURL, options: .atomic)
-        try createEPUB(from: root, at: output)
+        try createEPUB(from: epubRoot, at: output)
     }
 
     private func createEPUB(from root: URL, at output: URL) throws {
