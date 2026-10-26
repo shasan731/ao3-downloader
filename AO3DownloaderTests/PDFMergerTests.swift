@@ -22,7 +22,11 @@ final class PDFMergerTests: XCTestCase {
     private func makePDF(at url: URL, labels: [String]) throws -> URL {
         let document = PDFDocument()
         for label in labels {
-            let image = NSImage(size: NSSize(width: 300, height: 400))
+            let image = NSImage(size: NSSize(width: 300, height: 400), flipped: false) { rect in
+                NSColor.white.setFill()
+                rect.fill()
+                return true
+            }
             guard let page = PDFPage(image: image) else { throw AO3Error.mergeFailed("could not create PDF fixture") }
             let annotation = PDFAnnotation(bounds: NSRect(x: 20, y: 20, width: 100, height: 30), forType: .freeText, withProperties: nil)
             annotation.contents = label
