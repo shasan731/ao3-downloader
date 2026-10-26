@@ -12,14 +12,11 @@
 - Combined EPUB 3 output with per-work resource namespaces, regenerated package/spine and Series → Work → Chapter navigation; combined PDF page concatenation with PDFKit.
 - Window-owned operations continue across sidebar navigation, with analysis-page progress, per-work processed counts/status icons, combined-book assembly/verification phases, elapsed time, and explicit cancellation that retains verified output.
 - Versioned atomic JSON persistence service and deterministic URL/parser/file/persistence tests.
-- arm64 GitHub Actions test/build/ZIP/DMG/checksum pipeline and tag prerelease workflow.
-
-## Implemented; awaiting the next authoritative CI run
-
 - Durable Library projects with immediate per-part/failure checkpoints, security-scoped destination bookmarks, retained hidden sources for combined-only jobs, and missing-local-file detection.
 - Per-part retry, dynamic deselection during an active download, manual verified-subset recombination after failures, and reanalysis that preserves known selections/downloads while identifying new work IDs.
 - Editable title, authors, language, and managed JPEG/PNG cover metadata for single works, retained parts, new combined books, and existing combined EPUB/PDF files.
 - Synthetic tests for Library round trips, live deselection, retained-source reuse, EPUB package metadata/cover edits, and PDF metadata/cover output.
+- arm64 GitHub Actions test/build/ZIP/DMG/checksum pipeline and tag prerelease workflow.
 
 ## Not yet supported
 
@@ -30,5 +27,5 @@
 
 ## Verification state
 
-GitHub Actions run [#12](https://github.com/shasan731/ao3-downloader/actions/runs/40361375886) passed on October 26, 2026 for commit `ca45227`: synthetic single-work, selectable-series, ordered-progress, queued-cancellation, EPUB-merger, and PDF-merger tests; arm64 Release build; ad-hoc signature verification; ZIP/DMG packaging; checksums; and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
+GitHub Actions run [#20](https://github.com/shasan731/ao3-downloader/actions/runs/40374675246) passed on October 27, 2026 for commit `2b0a135`: the synthetic single-work, selectable-series, live-selection, retained-source, retry-support, Library-persistence, EPUB merger/metadata, PDF merger/metadata, ordered-progress, and queued-cancellation suite passed; the arm64 Release build, ad-hoc signature verification, ZIP/DMG packaging, checksums, and `AO3Downloader-2b0a1357be1ce646f268f43ddd6eb8d01fbcda1d` artifact upload also completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
 
