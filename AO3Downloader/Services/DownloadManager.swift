@@ -194,7 +194,8 @@ actor DownloadManager {
                 case .epub:
                     try EPUBMerger().merge(series: series, inputs: mergeParts.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) }, metadata: metadata, to: target)
                 case .pdf:
-                    try PDFMerger().merge(mergeParts.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) }, metadata: metadata, to: target)
+                    try PDFMerger().merge(mergeParts.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) },
+                                          metadata: metadata, asAnthology: true, to: target)
                 case .html:
                     throw AO3Error.combinedFormatUnsupported(format)
                 }
@@ -269,7 +270,7 @@ actor DownloadManager {
                                        metadata: metadata, to: target)
             case .pdf:
                 try PDFMerger().merge(parts.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) },
-                                      metadata: metadata, to: target)
+                                      metadata: metadata, asAnthology: true, to: target)
             case .html: throw AO3Error.combinedFormatUnsupported(format)
             }
         } catch {

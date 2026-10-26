@@ -14,9 +14,17 @@ final class PDFMergerTests: XCTestCase {
         let output = root.appendingPathComponent("merged.pdf")
         try PDFMerger().merge([input(position: 1, file: first), input(position: 2, file: second)], to: output)
         let merged = try XCTUnwrap(PDFDocument(url: output))
-        XCTAssertEqual(merged.pageCount, 3)
-        let labels = (0..<merged.pageCount).compactMap { merged.page(at: $0)?.annotations.first?.contents }
+        XCTAssertEqual(merged.pageCount, 5)
+        let labels = (0..<merged.pageCount).flatMap { merged.page(at: $0)?.annotations.compactMap(\.contents) ?? [] }
+            .filter { ["A1", "A2", "B1"].contains($0) }
         XCTAssertEqual(labels, ["A1", "A2", "B1"])
+        let rootOutline = try XCTUnwrap(merged.outlineRoot)
+        XCTAssertEqual(rootOutline.numberOfChildren, 4)
+        XCTAssertEqual(rootOutline.child(at: 2)?.label, "Book 1: Work 1")
+        XCTAssertEqual(rootOutline.child(at: 2)?.numberOfChildren, 2)
+        XCTAssertEqual(rootOutline.child(at: 2)?.child(at: 0)?.label, "A1")
+        let contentsPage = try XCTUnwrap(merged.page(at: 1))
+        XCTAssertEqual(contentsPage.annotations.filter { $0.destination != nil }.count, 5)
     }
 
     func testAppliesMetadataAndManagedCover() throws {
@@ -33,9 +41,17 @@ final class PDFMergerTests: XCTestCase {
         let metadata = EditableBookMetadata(title: "Custom Title", authors: ["Custom Author"], language: "en", coverImageURL: cover)
         try PDFMerger().merge([input(position: 1, file: source)], metadata: metadata, to: output)
         let document = try XCTUnwrap(PDFDocument(url: output))
-        XCTAssertEqual(document.pageCount, 2)
+        XCTAssertEqual(document.pageCount, 4)
         XCTAssertEqual(document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String, "Custom Title")
         XCTAssertEqual(document.documentAttributes?[PDFDocumentAttribute.authorAttribute] as? String, "Custom Author")
+
+        let edited = root.appendingPathComponent("metadata-edited.pdf")
+        try PDFMerger().merge([input(position: 1, file: output)],
+                              metadata: .init(title: "Edited Again", authors: ["Custom Author"], language: "en", coverImageURL: cover),
+                              to: edited)
+        let editedDocument = try XCTUnwrap(PDFDocument(url: edited))
+        XCTAssertEqual(editedDocument.pageCount, 4)
+        XCTAssertEqual(editedDocument.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String, "Edited Again")
     }
 
     private func makePDF(at url: URL, labels: [String]) throws -> URL {
@@ -52,6 +68,14 @@ final class PDFMergerTests: XCTestCase {
             page.addAnnotation(annotation)
             document.insert(page, at: document.pageCount)
         }
+        let root = PDFOutline()
+        for (index, label) in labels.enumerated() {
+            let item = PDFOutline()
+            item.label = label
+            item.destination = PDFDestination(page: try XCTUnwrap(document.page(at: index)), at: .zero)
+            root.insertChild(item, at: root.numberOfChildren)
+        }
+        document.outlineRoot = root
         guard document.write(to: url) else { throw AO3Error.mergeFailed("could not write PDF fixture") }
         return url
     }

@@ -8,7 +8,7 @@ final class EPUBMergerTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: root) }
-        let first = try makeEPUB(at: root, name: "first", chapter: "Chapter One", assetText: "first")
+        let first = try makeEPUB(at: root, name: "first", chapters: ["Chapter One", "Chapter Two"], assetText: "first")
         let second = try makeEPUB(at: root, name: "second", chapter: "Chapter Two", assetText: "second")
         let seriesURL = URL(string: "https://archiveofourown.org/series/99")!
         let series = Series(id: "99", title: "Synthetic Saga", creators: ["Fixture Author"], description: nil,
@@ -30,9 +30,17 @@ final class EPUBMergerTests: XCTestCase {
         let opf = try String(contentsOf: extracted.appendingPathComponent("OEBPS/content.opf"), encoding: .utf8)
         let nav = try String(contentsOf: extracted.appendingPathComponent("OEBPS/nav.xhtml"), encoding: .utf8)
         XCTAssertTrue(opf.contains("works/001/Text/chapter.xhtml"))
+        XCTAssertTrue(opf.contains("works/001/Text/chapter-2.xhtml"))
         XCTAssertTrue(opf.contains("works/002/Text/chapter.xhtml"))
-        XCTAssertLessThan(try XCTUnwrap(nav.range(of: "Part 1: First Work")?.lowerBound),
-                          try XCTUnwrap(nav.range(of: "Part 2: Second Work")?.lowerBound))
+        XCTAssertTrue(opf.contains("idref=\"title-page\""))
+        XCTAssertTrue(opf.contains("idref=\"nav\""))
+        XCTAssertLessThan(try XCTUnwrap(nav.range(of: "Book 1: First Work")?.lowerBound),
+                          try XCTUnwrap(nav.range(of: "Book 2: Second Work")?.lowerBound))
+        XCTAssertTrue(nav.contains("href=\"works/001/index.xhtml\""))
+        XCTAssertTrue(nav.contains("href=\"works/001/Text/chapter.xhtml\">Chapter One"))
+        XCTAssertTrue(nav.contains("href=\"works/001/Text/chapter-2.xhtml\">Chapter Two"))
+        XCTAssertTrue(try String(contentsOf: extracted.appendingPathComponent("OEBPS/title.xhtml"), encoding: .utf8).contains("Synthetic Saga"))
+        XCTAssertTrue(try String(contentsOf: extracted.appendingPathComponent("OEBPS/styles/book.css"), encoding: .utf8).contains(".book-entry"))
         XCTAssertEqual(try String(contentsOf: extracted.appendingPathComponent("OEBPS/works/001/Images/shared.txt"), encoding: .utf8), "first")
         XCTAssertEqual(try String(contentsOf: extracted.appendingPathComponent("OEBPS/works/002/Images/shared.txt"), encoding: .utf8), "second")
     }
@@ -74,6 +82,10 @@ final class EPUBMergerTests: XCTestCase {
     }
 
     private func makeEPUB(at root: URL, name: String, chapter: String, assetText: String) throws -> URL {
+        try makeEPUB(at: root, name: name, chapters: [chapter], assetText: assetText)
+    }
+
+    private func makeEPUB(at root: URL, name: String, chapters: [String], assetText: String) throws -> URL {
         let directory = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("META-INF"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("OEBPS/Text"), withIntermediateDirectories: true)
@@ -82,11 +94,19 @@ final class EPUBMergerTests: XCTestCase {
         try Data("""
         <?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>
         """.utf8).write(to: directory.appendingPathComponent("META-INF/container.xml"))
+        let chapterItems = chapters.enumerated().map { index, _ in
+            let suffix = index == 0 ? "" : "-\(index + 1)"
+            return "<item id=\"chapter\(index + 1)\" href=\"Text/chapter\(suffix).xhtml\" media-type=\"application/xhtml+xml\"/>"
+        }.joined()
+        let spineItems = chapters.indices.map { "<itemref idref=\"chapter\($0 + 1)\"/>" }.joined()
         try Data("""
-        <?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>\(name)</dc:title></metadata><manifest><item id="chapter" href="Text/chapter.xhtml" media-type="application/xhtml+xml"/><item id="asset" href="Images/shared.txt" media-type="text/plain"/></manifest><spine><itemref idref="chapter"/></spine></package>
+        <?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>\(name)</dc:title></metadata><manifest>\(chapterItems)<item id="asset" href="Images/shared.txt" media-type="text/plain"/></manifest><spine>\(spineItems)</spine></package>
         """.utf8).write(to: directory.appendingPathComponent("OEBPS/content.opf"))
-        try Data("<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>\(chapter)</title></head><body><h2>\(chapter)</h2><a href=\"../Images/shared.txt\">asset</a></body></html>".utf8)
-            .write(to: directory.appendingPathComponent("OEBPS/Text/chapter.xhtml"))
+        for (index, chapter) in chapters.enumerated() {
+            let suffix = index == 0 ? "" : "-\(index + 1)"
+            try Data("<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>\(chapter)</title></head><body><h2>\(chapter)</h2><a href=\"../Images/shared.txt\">asset</a></body></html>".utf8)
+                .write(to: directory.appendingPathComponent("OEBPS/Text/chapter\(suffix).xhtml"))
+        }
         try Data(assetText.utf8).write(to: directory.appendingPathComponent("OEBPS/Images/shared.txt"))
         let output = root.appendingPathComponent(name + ".epub")
         try FileManager.default.zipItem(at: directory, to: output, shouldKeepParent: false, compressionMethod: .none)

@@ -67,6 +67,7 @@ struct EPUBMerger: Sendable {
         var spineLines: [String] = []
         var navigationWorks: [String] = []
         var authors: [String] = []
+        var firstReadingHref: String?
 
         if let cover = metadata?.coverImageURL {
             let ext = cover.pathExtension.lowercased()
@@ -83,6 +84,12 @@ struct EPUBMerger: Sendable {
             spineLines.append("<itemref idref=\"cover-page\"/>")
         }
 
+        manifestLines.append("<item id=\"book-style\" href=\"styles/book.css\" media-type=\"text/css\"/>")
+        manifestLines.append("<item id=\"title-page\" href=\"title.xhtml\" media-type=\"application/xhtml+xml\"/>")
+        manifestLines.append("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>")
+        spineLines.append("<itemref idref=\"title-page\"/>")
+        spineLines.append("<itemref idref=\"nav\"/>")
+
         for input in inputs.sorted(by: { $0.entry.position < $1.entry.position }) {
             try Task.checkCancellation()
             try DownloadValidator().validate(file: input.fileURL, format: .epub)
@@ -95,6 +102,7 @@ struct EPUBMerger: Sendable {
             let destinationBase = oebps.appendingPathComponent(namespace, isDirectory: true)
             try fileManager.createDirectory(at: destinationBase, withIntermediateDirectories: true)
             let dividerHref = "\(namespace)/index.xhtml"
+            if firstReadingHref == nil { firstReadingHref = dividerHref }
             let dividerID = "w\(input.entry.position)_title"
             try write(workTitlePage(input), to: oebps.appendingPathComponent(dividerHref))
             manifestLines.append("<item id=\"\(dividerID)\" href=\"\(xml(dividerHref))\" media-type=\"application/xhtml+xml\"/>")
@@ -134,15 +142,24 @@ struct EPUBMerger: Sendable {
                 spineLines.append("<itemref idref=\"\(newID)\"/>")
                 let href = "\(namespace)/\(item.href.removingPercentEncoding ?? item.href)"
                 let label = try chapterTitle(at: opfDirectory.appendingPathComponent(item.href.removingPercentEncoding ?? item.href))
-                chapterLinks.append("<li><a href=\"\(xml(href))\">\(xml(label))</a></li>")
+                if isReadableSection(item: item, label: label, workTitle: input.work.title) {
+                    chapterLinks.append("<li><a href=\"\(xml(href))\">\(xml(label))</a></li>")
+                }
             }
-            let workLabel = "Part \(input.entry.position): \(input.work.title)"
-            navigationWorks.append("<li><a href=\"\(xml(dividerHref))\">\(xml(workLabel))</a><ol>\(chapterLinks.joined())</ol></li>")
+            let workLabel = "Book \(input.entry.position): \(input.work.title)"
+            let chapters = chapterLinks.isEmpty ? "" : "<ol>\(chapterLinks.joined())</ol>"
+            navigationWorks.append("<li class=\"book-entry\"><a href=\"\(xml(dividerHref))\">\(xml(workLabel))</a>\(chapters)</li>")
             authors.append(contentsOf: input.work.creators)
         }
 
-        try write(navigation(title: metadata?.title ?? series.title, works: navigationWorks), to: oebps.appendingPathComponent("nav.xhtml"))
-        manifestLines.insert("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>", at: 0)
+        let customAuthors = metadata?.authors ?? []
+        let finalAuthors = customAuthors.isEmpty ? Array(Set(authors)).sorted() : customAuthors
+        try write(bookStyle, to: oebps.appendingPathComponent("styles/book.css"))
+        try write(titlePage(series: series, title: metadata?.title ?? series.title, authors: finalAuthors),
+                  to: oebps.appendingPathComponent("title.xhtml"))
+        try write(navigation(title: metadata?.title ?? series.title, works: navigationWorks,
+                             firstReadingHref: firstReadingHref ?? "title.xhtml"),
+                  to: oebps.appendingPathComponent("nav.xhtml"))
         let opf = contentOPF(series: series, metadata: metadata, authors: Array(Set(authors)).sorted(), manifest: manifestLines, spine: spineLines)
         try write(opf, to: oebps.appendingPathComponent("content.opf"))
         try createArchive(from: packageRoot, at: outputURL)
@@ -193,6 +210,14 @@ struct EPUBMerger: Sendable {
             if let value = try document.select(selector).first()?.text(), !value.isEmpty { return value }
         }
         return "Chapter"
+    }
+
+    private func isReadableSection(item: EPUBManifestItem, label: String, workTitle: String) -> Bool {
+        let path = item.href.lowercased()
+        if path.contains("chapter") { return true }
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let work = workTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized != work && !["cover", "title page", "contents", "table of contents"].contains(normalized)
     }
 
     private func createArchive(from root: URL, at output: URL) throws {
@@ -247,12 +272,51 @@ struct EPUBMerger: Sendable {
 
     private func workTitlePage(_ input: EPUBMergeInput) -> String { """
     <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="\(xml(input.work.language ?? "en"))"><head><title>\(xml(input.work.title))</title></head><body><section><p>Part \(input.entry.position)</p><h1>\(xml(input.work.title))</h1><p>by \(xml(input.work.creators.joined(separator: ", ")))</p><p><a href="\(xml(input.work.sourceURL.absoluteString))">Original work on AO3</a></p></section></body></html>
+    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="\(xml(input.work.language ?? "en"))"><head><title>\(xml(input.work.title))</title><link rel="stylesheet" type="text/css" href="../../styles/book.css"/></head><body class="part-title"><section epub:type="part"><p class="eyebrow">Book \(input.entry.position)</p><h1>\(xml(input.work.title))</h1><p class="byline">\(xml(byline(input.work.creators)))</p><div class="ornament">◆</div>\(summary(input.work.summary))<p class="source"><a href="\(xml(input.work.sourceURL.absoluteString))">Original work on AO3</a></p><p class="contents-link"><a href="../../nav.xhtml">Return to Contents</a></p></section></body></html>
     """ }
 
-    private func navigation(title: String, works: [String]) -> String { """
+    private func navigation(title: String, works: [String], firstReadingHref: String) -> String { """
     <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>\(xml(title))</h1><ol>\(works.joined())</ol></nav></body></html>
+    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title><link rel="stylesheet" type="text/css" href="styles/book.css"/></head><body class="contents"><nav epub:type="toc" id="toc"><p class="eyebrow">\(xml(title))</p><h1>Contents</h1><ol>\(works.joined())</ol></nav><nav epub:type="landmarks" hidden="hidden"><ol><li><a epub:type="titlepage" href="title.xhtml">Title Page</a></li><li><a epub:type="toc" href="nav.xhtml">Contents</a></li><li><a epub:type="bodymatter" href="\(xml(firstReadingHref))">Begin Reading</a></li></ol></nav></body></html>
+    """ }
+
+    private func titlePage(series: Series, title: String, authors: [String]) -> String { """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>\(xml(title))</title><link rel="stylesheet" type="text/css" href="styles/book.css"/></head><body class="book-title"><section epub:type="titlepage"><p class="eyebrow">A series anthology</p><h1>\(xml(title))</h1><div class="ornament">◆</div><p class="byline">\(xml(byline(authors)))</p><p class="source"><a href="\(xml(series.sourceURL.absoluteString))">Original series on AO3</a></p></section></body></html>
+    """ }
+
+    private func byline(_ authors: [String]) -> String {
+        authors.isEmpty ? "Unknown Creator" : "by \(authors.joined(separator: ", "))"
+    }
+
+    private func summary(_ value: String?) -> String {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+        return "<blockquote>\(xml(value))</blockquote>"
+    }
+
+    private var bookStyle: String { """
+    @charset "UTF-8";
+    html { color: #222; background: transparent; }
+    body { font-family: Georgia, "Times New Roman", serif; line-height: 1.55; margin: 5%; }
+    a { color: #315c86; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .book-title, .part-title { text-align: center; }
+    .book-title section, .part-title section { margin: 18vh auto 0; max-width: 36em; }
+    h1 { font-weight: normal; line-height: 1.15; margin: 0.45em 0; }
+    .book-title h1 { font-size: 2.4em; }
+    .part-title h1 { font-size: 2em; }
+    .eyebrow { font-family: -apple-system, sans-serif; font-size: 0.75em; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #666; }
+    .byline { font-style: italic; }
+    .ornament { color: #777; margin: 1.8em 0; }
+    .source, .contents-link { font-size: 0.85em; margin-top: 2.4em; }
+    blockquote { border-left: 0.18em solid #bbb; margin: 2em auto; max-width: 32em; padding-left: 1em; text-align: left; }
+    .contents { max-width: 42em; margin: 5% auto; }
+    .contents h1 { border-bottom: 1px solid #aaa; padding-bottom: 0.35em; }
+    .contents ol { padding-left: 1.4em; }
+    .contents li { margin: 0.55em 0; }
+    .contents .book-entry { margin-top: 1.2em; }
+    .contents .book-entry > a { font-weight: 700; }
+    .contents .book-entry ol { font-size: 0.92em; }
     """ }
 
     private func coverPage(imageName: String, title: String) -> String { """
@@ -266,7 +330,7 @@ struct EPUBMerger: Sendable {
         let creators = finalAuthors.isEmpty ? "<dc:creator>Unknown Creator</dc:creator>" : finalAuthors.map { "<dc:creator>\(xml($0))</dc:creator>" }.joined()
         return """
         <?xml version="1.0" encoding="UTF-8"?>
-        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(xml(metadata?.title ?? series.title))</dc:title>\(creators)<dc:language>\(xml(metadata?.language ?? "en"))</dc:language><dc:source>\(xml(series.sourceURL.absoluteString))</dc:source><meta property="dcterms:modified">\(ISO8601DateFormatter().string(from: .now))</meta></metadata><manifest>\(manifest.joined())</manifest><spine>\(spine.joined())</spine></package>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(xml(metadata?.title ?? series.title))</dc:title>\(creators)<dc:language>\(xml(metadata?.language ?? "en"))</dc:language><dc:source>\(xml(series.sourceURL.absoluteString))</dc:source><meta property="belongs-to-collection">\(xml(series.title))</meta><meta property="collection-type">series</meta><meta property="dcterms:modified">\(ISO8601DateFormatter().string(from: .now))</meta></metadata><manifest>\(manifest.joined())</manifest><spine>\(spine.joined())</spine></package>
         """
     }
 }

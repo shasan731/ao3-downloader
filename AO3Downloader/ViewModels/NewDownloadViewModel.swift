@@ -252,7 +252,7 @@ final class NewDownloadViewModel: ObservableObject {
             try Task.checkCancellation()
             if let work {
                 outputURL = try await dependencies.manager.download(work: work, format: format, to: destination)
-                if metadataWasCustomized(from: work), let fileURL = outputURL {
+                if (format == .pdf || metadataWasCustomized(from: work)), let fileURL = outputURL {
                     let metadata = editableMetadata, selectedFormat = format
                     try await Task.detached {
                         try BookMetadataEditor().apply(metadata, to: fileURL, format: selectedFormat, work: work)
