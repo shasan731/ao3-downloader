@@ -3,21 +3,27 @@ import SwiftUI
 struct SeriesPreviewView: View {
     let series: Series
     let onSelectionChanged: (String, Bool) -> Void
+    let onSelectAll: (Bool) -> Void
 
     var body: some View {
         Section("Series Preview") {
             Text(series.title).font(.title2).bold().textSelection(.enabled)
             if let description = series.description { Text(description).textSelection(.enabled) }
-            Text("\(series.orderedWorks.filter { $0.accessState == .publicAccess }.count) accessible of \(series.orderedWorks.count) listed works")
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("\(series.orderedWorks.filter(\.selected).count) selected • \(series.orderedWorks.filter { $0.accessState == .publicAccess }.count) accessible of \(series.orderedWorks.count) listed parts")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("All") { onSelectAll(true) }.accessibilityLabel("Select all accessible series parts")
+                Button("None") { onSelectAll(false) }.accessibilityLabel("Deselect all series parts")
+            }
             ForEach(series.orderedWorks.sorted(by: { $0.position < $1.position })) { entry in
                 HStack(alignment: .firstTextBaseline) {
                     Toggle(isOn: Binding(get: { entry.selected }, set: { onSelectionChanged(entry.workID, $0) })) { EmptyView() }
                         .labelsHidden()
                         .disabled(entry.accessState != .publicAccess)
-                    Text("\(entry.position).")
+                    Text("Part \(entry.position)")
                         .foregroundStyle(.secondary)
-                        .frame(minWidth: 28, alignment: .trailing)
+                        .frame(minWidth: 52, alignment: .trailing)
                     VStack(alignment: .leading) {
                         Text(entry.title).textSelection(.enabled)
                         if entry.accessState != .publicAccess {
@@ -29,8 +35,6 @@ struct SeriesPreviewView: View {
                     if entry.accessState == .publicAccess { Link("Source", destination: entry.sourceURL) }
                 }
             }
-            Text("Series downloads are separate files. Combined EPUB/PDF is not implemented in this build.")
-                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 }

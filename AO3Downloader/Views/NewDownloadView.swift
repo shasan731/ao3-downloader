@@ -11,12 +11,21 @@ struct NewDownloadView: View {
             }
             if let work = model.work { WorkPreviewView(work: work) }
             if let series = model.series {
-                SeriesPreviewView(series: series) { workID, selected in
-                    model.setSelection(selected, for: workID)
-                }
+                SeriesPreviewView(series: series,
+                                  onSelectionChanged: { model.setSelection($1, for: $0) },
+                                  onSelectAll: { model.selectAllSeriesWorks($0) })
             }
             Section("Download") {
-                Picker("Format", selection: $model.format) { ForEach(DownloadFormat.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented)
+                Picker("Format", selection: Binding(get: { model.format }, set: { model.setFormat($0) })) {
+                    ForEach(DownloadFormat.allCases) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented)
+                if model.series != nil {
+                    Picker("Series output", selection: $model.seriesOutputMode) {
+                        ForEach(SeriesOutputMode.allCases.filter { model.format != .html || $0 == .separate }) { Text($0.rawValue).tag($0) }
+                    }
+                    Text(model.format == .html ? "Combined HTML is not supported." : "A combined book is created only when every selected work downloads and verifies successfully.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 HStack { Button("Choose Folder…") { model.chooseFolder() }; Text(model.destination?.path(percentEncoded: false) ?? "No folder selected").lineLimit(1).truncationMode(.middle).textSelection(.enabled) }
                 Button(model.series == nil ? "Download Complete Work" : "Download Selected Works") { Task { await model.download() } }
                     .buttonStyle(.borderedProminent)

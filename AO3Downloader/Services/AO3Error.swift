@@ -16,6 +16,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
     case storage(String)
     case seriesTooLarge(Int)
     case noSeriesWorksSelected
+    case combinedFormatUnsupported(DownloadFormat)
+    case mergeFailed(String)
     case cancelled
 
     var errorDescription: String? {
@@ -37,6 +39,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
         case .storage(let detail): return "The file could not be saved: \(detail)."
         case .seriesTooLarge(let pages): return "The series exceeded the safe pagination limit of \(pages) pages. It was not silently truncated."
         case .noSeriesWorksSelected: return "Select at least one accessible work in the series."
+        case .combinedFormatUnsupported(let format): return "Combined series output is not supported for \(format.rawValue). Choose EPUB, PDF, or separate files."
+        case .mergeFailed(let detail): return "The combined book could not be created: \(detail). Verified individual files were retained."
         case .cancelled: return "The operation was cancelled."
         }
     }

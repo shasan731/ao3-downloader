@@ -34,7 +34,7 @@ final class SeriesDownloadTests: XCTestCase {
                                 .init(workID: "102", position: 2, title: "Second", sourceURL: URL(string: "https://archiveofourown.org/works/102")!, accessState: .publicAccess, selected: true),
                                 .init(workID: "unavailable-page-1-3", position: 3, title: "Unavailable", sourceURL: source, accessState: .unavailable, selected: false)
                             ], isCompletePagination: true)
-        let result = try await DownloadManager(provider: SyntheticSeriesProvider()).download(series: series, format: .html, to: root)
+        let result = try await DownloadManager(provider: SyntheticSeriesProvider()).download(series: series, format: .html, outputMode: .separate, to: root)
         XCTAssertEqual(result.outputFiles.count, 1)
         XCTAssertTrue(result.outputFiles[0].lastPathComponent.hasPrefix("01 - "))
         XCTAssertEqual(result.failures.map(\.position), [2, 3])

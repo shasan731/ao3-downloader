@@ -1,5 +1,11 @@
 import Foundation
 
+private struct DownloadedSeriesWork {
+    let entry: SeriesEntry
+    let work: Work
+    let fileURL: URL
+}
+
 actor DownloadManager {
     private let provider: AO3Providing
     private let naming = FileNamingService()
@@ -24,9 +30,10 @@ actor DownloadManager {
         }
     }
 
-    func download(series: Series, format: DownloadFormat, to parent: URL) async throws -> SeriesDownloadResult {
+    func download(series: Series, format: DownloadFormat, outputMode: SeriesOutputMode, to parent: URL) async throws -> SeriesDownloadResult {
         let selected = series.orderedWorks.filter { $0.selected && $0.accessState == .publicAccess }
         guard !selected.isEmpty else { throw AO3Error.noSeriesWorksSelected }
+        if outputMode != .separate && format == .html { throw AO3Error.combinedFormatUnsupported(format) }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: parent.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw AO3Error.storage("destination folder is unavailable")
@@ -34,6 +41,7 @@ actor DownloadManager {
         let directory = naming.availableDirectory(in: parent, name: "\(series.title) [AO3-Series-\(series.id)]")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
         var outputs: [URL] = []
+        var downloaded: [DownloadedSeriesWork] = []
         var failures: [SeriesDownloadFailure] = series.orderedWorks
             .filter { $0.accessState != .publicAccess }
             .map { failure(for: $0, category: "inaccessible", message: "The series entry is unavailable to a logged-out reader.") }
@@ -50,13 +58,39 @@ actor DownloadManager {
                 try FileManager.default.moveItem(at: staged, to: target)
                 try DownloadValidator().validate(file: target, format: format)
                 outputs.append(target)
+                downloaded.append(.init(entry: entry, work: work, fileURL: target))
             } catch {
                 failures.append(failure(for: entry, category: category(for: error), message: error.localizedDescription))
             }
         }
         failures.sort { $0.position < $1.position }
         if !failures.isEmpty { try writeReport(series: series, format: format, failures: failures, outputs: outputs, to: directory) }
-        return SeriesDownloadResult(directory: directory, outputFiles: outputs, failures: failures)
+        var combinedFile: URL?
+        if outputMode != .separate && failures.isEmpty {
+            let author = Array(Set(downloaded.flatMap { $0.work.creators })).sorted().joined(separator: ", ")
+            let base = naming.sanitize("\(series.title) - \(author.isEmpty ? "Unknown Creator" : author) [AO3-Series-\(series.id)].\(format.fileExtension)")
+            let target = naming.availableURL(in: directory, filename: base)
+            do {
+                switch format {
+                case .epub:
+                    try EPUBMerger().merge(series: series, inputs: downloaded.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) }, to: target)
+                case .pdf:
+                    try PDFMerger().merge(downloaded.map { .init(entry: $0.entry, work: $0.work, fileURL: $0.fileURL) }, to: target)
+                case .html:
+                    throw AO3Error.combinedFormatUnsupported(format)
+                }
+                combinedFile = target
+                if outputMode == .combined {
+                    for output in outputs { try? FileManager.default.removeItem(at: output) }
+                    outputs = []
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: target)
+                if let error = error as? AO3Error { throw error }
+                throw AO3Error.mergeFailed(error.localizedDescription)
+            }
+        }
+        return SeriesDownloadResult(directory: directory, outputFiles: outputs, combinedFile: combinedFile, failures: failures)
     }
 
     private func failure(for entry: SeriesEntry, category: String, message: String) -> SeriesDownloadFailure {

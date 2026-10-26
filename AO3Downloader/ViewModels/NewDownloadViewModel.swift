@@ -8,6 +8,7 @@ final class NewDownloadViewModel: ObservableObject {
     @Published var work: Work?
     @Published var series: Series?
     @Published var format: DownloadFormat = .epub
+    @Published var seriesOutputMode: SeriesOutputMode = .separate
     @Published var destination: URL?
     @Published var status = "Paste a public AO3 work or series URL to begin."
     @Published var isBusy = false
@@ -49,6 +50,19 @@ final class NewDownloadViewModel: ObservableObject {
         series?.orderedWorks[index].selected = selected
     }
 
+    func selectAllSeriesWorks(_ selected: Bool) {
+        guard var current = series else { return }
+        for index in current.orderedWorks.indices where current.orderedWorks[index].accessState == .publicAccess {
+            current.orderedWorks[index].selected = selected
+        }
+        series = current
+    }
+
+    func setFormat(_ newFormat: DownloadFormat) {
+        format = newFormat
+        if newFormat == .html { seriesOutputMode = .separate }
+    }
+
     func download() async {
         guard let destination, !isBusy else { return }
         isBusy = true; outputURL = nil; status = "Downloading and verifying…"; defer { isBusy = false }
@@ -57,10 +71,14 @@ final class NewDownloadViewModel: ObservableObject {
                 outputURL = try await dependencies.manager.download(work: work, format: format, to: destination)
                 status = "Download completed and verified."
             } else if let series {
-                let result = try await dependencies.manager.download(series: series, format: format, to: destination)
+                let result = try await dependencies.manager.download(series: series, format: format, outputMode: seriesOutputMode, to: destination)
                 outputURL = result.directory
                 if result.isPartial {
-                    status = "Series finished partially: \(result.outputFiles.count) saved, \(result.failures.count) unavailable or failed. See download-report.json."
+                    status = "Series finished partially: \(result.outputFiles.count) individual files saved, \(result.failures.count) unavailable or failed. No combined book was created. See download-report.json."
+                } else if let combined = result.combinedFile, result.outputFiles.isEmpty {
+                    status = "Combined series book created and verified: \(combined.lastPathComponent)."
+                } else if let combined = result.combinedFile {
+                    status = "All \(result.outputFiles.count) individual works and \(combined.lastPathComponent) were created and verified."
                 } else {
                     status = "All \(result.outputFiles.count) selected works downloaded and verified in author order."
                 }

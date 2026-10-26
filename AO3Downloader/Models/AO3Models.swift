@@ -16,6 +16,13 @@ enum DownloadFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     var fileExtension: String { rawValue.lowercased() }
 }
 
+enum SeriesOutputMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case separate = "Separate files"
+    case combined = "One combined book"
+    case both = "Both"
+    var id: String { rawValue }
+}
+
 struct Work: Identifiable, Codable, Hashable, Sendable {
     let id: String
     var title: String
@@ -84,6 +91,7 @@ struct SeriesDownloadFailure: Codable, Hashable, Sendable {
 struct SeriesDownloadResult: Sendable {
     let directory: URL
     let outputFiles: [URL]
+    let combinedFile: URL?
     let failures: [SeriesDownloadFailure]
     var isPartial: Bool { !failures.isEmpty }
 }
