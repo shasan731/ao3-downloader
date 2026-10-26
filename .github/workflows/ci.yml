@@ -34,10 +34,20 @@ jobs:
       - name: Test
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Debug \
             -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
             -resultBundlePath "$PWD/build/TestResults.xcresult" CODE_SIGNING_ALLOWED=NO test | tee build/test.log
+      - name: Annotate test failures
+        if: failure()
+        run: |
+          if test -f build/test.log; then
+            grep -E '(^|: )(error:|fatal error:|Testing failed:)' build/test.log | tail -100 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
       - name: Build release
+        if: success()
         run: |
           xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release \
             -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
