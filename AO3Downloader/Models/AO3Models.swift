@@ -72,3 +72,19 @@ struct DownloadJob: Identifiable, Codable, Sendable {
     var lastUpdatedAt: Date
 }
 
+struct SeriesDownloadFailure: Codable, Hashable, Sendable {
+    let workID: String
+    let position: Int
+    let title: String
+    let sourceURL: URL
+    let category: String
+    let message: String
+}
+
+struct SeriesDownloadResult: Sendable {
+    let directory: URL
+    let outputFiles: [URL]
+    let failures: [SeriesDownloadFailure]
+    var isPartial: Bool { !failures.isEmpty }
+}
+

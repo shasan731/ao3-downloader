@@ -20,6 +20,7 @@ struct URLSessionTransport: HTTPTransport {
 
 protocol AO3Providing: Sendable {
     func analyze(_ link: AO3Link) async throws -> Work
+    func analyzeSeries(_ link: AO3Link) async throws -> Series
     func download(_ work: Work, format: DownloadFormat) async throws -> URL
 }
 
@@ -44,6 +45,49 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
             throw AO3Error.siteLayoutChanged("invalid or oversized HTML")
         }
         return try parser.parseWork(html, link: link)
+    }
+
+    func analyzeSeries(_ link: AO3Link) async throws -> Series {
+        guard link.kind == .series else { throw AO3Error.unsupportedPath }
+        let pageLimit = 50
+        var pageURL: URL? = link.canonicalURL
+        var visitedPages = Set<URL>()
+        var seenWorks = Set<String>()
+        var combined: Series?
+        var position = 0
+
+        for _ in 0..<pageLimit {
+            guard let current = pageURL else { break }
+            guard isAllowedSeriesPage(current, seriesID: link.id), visitedPages.insert(current).inserted else {
+                throw AO3Error.siteLayoutChanged("repeated or unsafe series page")
+            }
+            let (data, response) = try await scheduler.perform { [transport, userAgent] in
+                var request = URLRequest(url: current)
+                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                return try await transport.data(for: request)
+            }
+            try classify(response, body: data)
+            guard data.count <= 8_000_000, let html = String(data: data, encoding: .utf8) else {
+                throw AO3Error.siteLayoutChanged("invalid or oversized series HTML")
+            }
+            let (page, next) = try parser.parseSeriesPage(html, link: link, pageURL: current)
+            if combined == nil { combined = page; combined?.orderedWorks = [] }
+            for var entry in page.orderedWorks {
+                let identity = entry.workID.hasPrefix("unavailable-") ? "unavailable-page-\(visitedPages.count)-\(entry.position)" : entry.workID
+                guard seenWorks.insert(identity).inserted else { continue }
+                position += 1
+                entry = .init(workID: identity, position: position, title: entry.title,
+                              sourceURL: entry.sourceURL, accessState: entry.accessState, selected: entry.selected)
+                combined?.orderedWorks.append(entry)
+            }
+            pageURL = next
+        }
+        if pageURL != nil { throw AO3Error.seriesTooLarge(pageLimit) }
+        guard var result = combined, !result.orderedWorks.isEmpty else {
+            throw AO3Error.siteLayoutChanged("no series works found")
+        }
+        result.isCompletePagination = true
+        return result
     }
 
     func download(_ work: Work, format: DownloadFormat) async throws -> URL {
@@ -74,6 +118,16 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
 
     private func isApproved(_ url: URL) -> Bool {
         url.scheme == "https" && ["archiveofourown.org", "download.archiveofourown.org"].contains(url.host?.lowercased() ?? "")
+    }
+
+    private func isAllowedSeriesPage(_ url: URL, seriesID: String) -> Bool {
+        guard url.scheme == "https", url.host?.lowercased() == "archiveofourown.org",
+              url.path == "/series/\(seriesID)", let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.fragment == nil else { return false }
+        return (components.queryItems ?? []).allSatisfy { item in
+            if item.name == "page" { return item.value?.allSatisfy(\.isNumber) == true }
+            return item.name == "language_id"
+        }
     }
 }
 

@@ -8,12 +8,13 @@
 - One in-flight AO3 request lifecycle globally, 15-second default spacing, cancellation-aware waiting.
 - Status classification, challenge/restricted detection, bounded HTML reads, host-safe downloads.
 - PDF/EPUB/HTML signatures and basic EPUB structure validation before safe, auto-renamed output.
+- Bounded series pagination with cycle/host/path protection, author-order selection, sequential separate-file downloads, inaccessible-work visibility, and partial `download-report.json` output.
 - Versioned atomic JSON persistence service and deterministic URL/parser/file/persistence tests.
 - arm64 GitHub Actions test/build/ZIP/DMG/checksum pipeline and tag prerelease workflow.
 
 ## Not yet supported
 
-- Series UI, pagination orchestration, durable per-work queue/recovery, partial reports.
+- Durable per-work queue/recovery and pause/resume/cancel controls.
 - Merged EPUB 3 and merged PDF output.
 - Complete pause/resume/cancel/history UI and persisted security-scoped bookmarks.
 - Full Retry-After parsing, escalation persistence, retries/offline monitoring, notifications.

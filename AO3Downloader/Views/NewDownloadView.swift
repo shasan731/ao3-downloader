@@ -10,10 +10,17 @@ struct NewDownloadView: View {
                 Text(model.status).foregroundStyle(model.work == nil ? .secondary : .primary).textSelection(.enabled)
             }
             if let work = model.work { WorkPreviewView(work: work) }
+            if let series = model.series {
+                SeriesPreviewView(series: series) { workID, selected in
+                    model.setSelection(selected, for: workID)
+                }
+            }
             Section("Download") {
                 Picker("Format", selection: $model.format) { ForEach(DownloadFormat.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented)
                 HStack { Button("Choose Folder…") { model.chooseFolder() }; Text(model.destination?.path(percentEncoded: false) ?? "No folder selected").lineLimit(1).truncationMode(.middle).textSelection(.enabled) }
-                Button("Download Complete Work") { Task { await model.download() } }.buttonStyle(.borderedProminent).disabled(model.work == nil || model.destination == nil || model.isBusy)
+                Button(model.series == nil ? "Download Complete Work" : "Download Selected Works") { Task { await model.download() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled((model.work == nil && model.series == nil) || model.destination == nil || model.isBusy)
                 if let output = model.outputURL { HStack { Button("Open File") { NSWorkspace.shared.open(output) }; Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([output]) } } }
             }
         }.formStyle(.grouped).navigationTitle("New Download").overlay { if model.isBusy { ProgressView().controlSize(.large) } }

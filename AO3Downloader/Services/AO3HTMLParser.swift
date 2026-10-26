@@ -37,16 +37,29 @@ struct AO3HTMLParser: Sendable {
                     wordCount: words, downloadableFormats: downloads, accessState: .publicAccess)
     }
 
-    func parseSeriesPage(_ html: String, link: AO3Link) throws -> (Series, URL?) {
-        let document = try SwiftSoup.parse(html, link.canonicalURL.absoluteString)
-        guard let heading = try document.select("h2.heading").first()?.text(), !heading.isEmpty else {
+    func parseSeriesPage(_ html: String, link: AO3Link, pageURL: URL? = nil) throws -> (Series, URL?) {
+        let baseURL = pageURL ?? link.canonicalURL
+        let document = try SwiftSoup.parse(html, baseURL.absoluteString)
+        if try document.select("form#new_user, #tos_agree, .challenge, #challenge-form").first() != nil {
+            throw AO3Error.accessRequired
+        }
+        guard let rawHeading = try document.select(".series.meta h2.heading, h2.heading").first()?.text(), !rawHeading.isEmpty else {
             throw AO3Error.siteLayoutChanged("missing series title")
         }
+        let heading = rawHeading.replacingOccurrences(of: "Series: ", with: "")
         var seen = Set<String>(); var entries: [SeriesEntry] = []
         for element in try document.select("li.work.blurb, li[role=article]").array() {
-            guard let anchor = try element.select("h4.heading a[href^=/works/]").first(),
-                  let href = try? anchor.attr("href"), let parsed = try? AO3URLParser().parse("https://archiveofourown.org\(href)"),
-                  seen.insert(parsed.id).inserted else { continue }
+            guard let anchor = try element.select("h4.heading a[href*=\"/works/\"]").first(),
+                  let href = try? anchor.attr("href"),
+                  let absolute = URL(string: href, relativeTo: baseURL)?.absoluteURL,
+                  let parsed = try? AO3URLParser().parse(absolute.absoluteString) else {
+                let position = entries.count + 1
+                entries.append(.init(workID: "unavailable-\(position)", position: position,
+                                     title: "Unavailable work at position \(position)", sourceURL: link.canonicalURL,
+                                     accessState: .unavailable, selected: false))
+                continue
+            }
+            guard seen.insert(parsed.id).inserted else { continue }
             let restricted = try element.select(".restricted, .private").first() != nil
             entries.append(.init(workID: parsed.id, position: entries.count + 1,
                                  title: (try? anchor.text()) ?? "Work \(parsed.id)", sourceURL: parsed.canonicalURL,
@@ -54,7 +67,7 @@ struct AO3HTMLParser: Sendable {
         }
         guard !entries.isEmpty else { throw AO3Error.siteLayoutChanged("no series works found") }
         let nextHref = try document.select("ol.pagination li.next a, .pagination .next a").first()?.attr("href")
-        let next = nextHref.flatMap { URL(string: $0, relativeTo: link.canonicalURL)?.absoluteURL }
+        let next = nextHref.flatMap { URL(string: $0, relativeTo: baseURL)?.absoluteURL }
         let series = Series(id: link.id, title: heading, creators: [],
                             description: try document.select(".series.meta blockquote.userstuff").first()?.text(),
                             sourceURL: link.canonicalURL, orderedWorks: entries, isCompletePagination: next == nil)

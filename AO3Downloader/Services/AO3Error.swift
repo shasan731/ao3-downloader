@@ -14,6 +14,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
     case invalidDownload(String)
     case unsafeRedirect
     case storage(String)
+    case seriesTooLarge(Int)
+    case noSeriesWorksSelected
     case cancelled
 
     var errorDescription: String? {
@@ -33,6 +35,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
         case .invalidDownload(let detail): return "The downloaded file could not be verified: \(detail)."
         case .unsafeRedirect: return "AO3 redirected to an unapproved host, so the request was stopped."
         case .storage(let detail): return "The file could not be saved: \(detail)."
+        case .seriesTooLarge(let pages): return "The series exceeded the safe pagination limit of \(pages) pages. It was not silently truncated."
+        case .noSeriesWorksSelected: return "Select at least one accessible work in the series."
         case .cancelled: return "The operation was cancelled."
         }
     }

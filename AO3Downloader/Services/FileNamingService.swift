@@ -25,5 +25,16 @@ struct FileNamingService: Sendable {
         }
         return directory.appendingPathComponent("\(stem)-\(UUID().uuidString).\(ext)")
     }
+
+    func availableDirectory(in parent: URL, name: String, fileManager: FileManager = .default) -> URL {
+        let safeName = sanitize(name)
+        let initial = parent.appendingPathComponent(safeName, isDirectory: true)
+        guard fileManager.fileExists(atPath: initial.path) else { return initial }
+        for index in 2...9_999 {
+            let candidate = parent.appendingPathComponent("\(safeName) (\(index))", isDirectory: true)
+            if !fileManager.fileExists(atPath: candidate.path) { return candidate }
+        }
+        return parent.appendingPathComponent("\(safeName)-\(UUID().uuidString)", isDirectory: true)
+    }
 }
 
