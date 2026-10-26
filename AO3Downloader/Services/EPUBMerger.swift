@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftSoup
 import ZIPFoundation
@@ -47,7 +48,7 @@ private final class OPFXMLDelegate: NSObject, XMLParserDelegate {
 }
 
 struct EPUBMerger: Sendable {
-    func merge(series: Series, inputs: [EPUBMergeInput], to outputURL: URL) throws {
+    func merge(series: Series, inputs: [EPUBMergeInput], metadata: EditableBookMetadata? = nil, to outputURL: URL) throws {
         guard !inputs.isEmpty else { throw AO3Error.mergeFailed("no EPUB works were supplied") }
         let fileManager = FileManager.default
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -66,6 +67,21 @@ struct EPUBMerger: Sendable {
         var spineLines: [String] = []
         var navigationWorks: [String] = []
         var authors: [String] = []
+
+        if let cover = metadata?.coverImageURL {
+            let ext = cover.pathExtension.lowercased()
+            let media = ["jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"][ext]
+            guard let media, NSImage(contentsOf: cover) != nil else {
+                throw AO3Error.mergeFailed("cover image must be a readable JPEG or PNG")
+            }
+            let imageName = "cover.\(ext)"
+            try fileManager.copyItem(at: cover, to: oebps.appendingPathComponent(imageName))
+            try write(coverPage(imageName: imageName, title: metadata?.title ?? series.title),
+                      to: oebps.appendingPathComponent("cover.xhtml"))
+            manifestLines.append("<item id=\"cover-image\" href=\"\(imageName)\" media-type=\"\(media)\" properties=\"cover-image\"/>")
+            manifestLines.append("<item id=\"cover-page\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>")
+            spineLines.append("<itemref idref=\"cover-page\"/>")
+        }
 
         for input in inputs.sorted(by: { $0.entry.position < $1.entry.position }) {
             try Task.checkCancellation()
@@ -125,9 +141,9 @@ struct EPUBMerger: Sendable {
             authors.append(contentsOf: input.work.creators)
         }
 
-        try write(navigation(title: series.title, works: navigationWorks), to: oebps.appendingPathComponent("nav.xhtml"))
+        try write(navigation(title: metadata?.title ?? series.title, works: navigationWorks), to: oebps.appendingPathComponent("nav.xhtml"))
         manifestLines.insert("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>", at: 0)
-        let opf = contentOPF(series: series, authors: Array(Set(authors)).sorted(), manifest: manifestLines, spine: spineLines)
+        let opf = contentOPF(series: series, metadata: metadata, authors: Array(Set(authors)).sorted(), manifest: manifestLines, spine: spineLines)
         try write(opf, to: oebps.appendingPathComponent("content.opf"))
         try createArchive(from: packageRoot, at: outputURL)
         try DownloadValidator().validate(file: outputURL, format: .epub)
@@ -239,11 +255,18 @@ struct EPUBMerger: Sendable {
     <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>\(xml(title))</h1><ol>\(works.joined())</ol></nav></body></html>
     """ }
 
-    private func contentOPF(series: Series, authors: [String], manifest: [String], spine: [String]) -> String {
-        let creators = authors.isEmpty ? "<dc:creator>Unknown Creator</dc:creator>" : authors.map { "<dc:creator>\(xml($0))</dc:creator>" }.joined()
+    private func coverPage(imageName: String, title: String) -> String { """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>\(xml(title))</title><style>html,body{margin:0;padding:0;text-align:center}img{max-width:100%;max-height:100vh}</style></head><body><section epub:type="cover" xmlns:epub="http://www.idpf.org/2007/ops"><img src="\(xml(imageName))" alt="Cover"/></section></body></html>
+    """ }
+
+    private func contentOPF(series: Series, metadata: EditableBookMetadata?, authors: [String], manifest: [String], spine: [String]) -> String {
+        let customAuthors = metadata?.authors ?? []
+        let finalAuthors = customAuthors.isEmpty ? authors : customAuthors
+        let creators = finalAuthors.isEmpty ? "<dc:creator>Unknown Creator</dc:creator>" : finalAuthors.map { "<dc:creator>\(xml($0))</dc:creator>" }.joined()
         return """
         <?xml version="1.0" encoding="UTF-8"?>
-        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(xml(series.title))</dc:title>\(creators)<dc:language>en</dc:language><dc:source>\(xml(series.sourceURL.absoluteString))</dc:source><meta property="dcterms:modified">\(ISO8601DateFormatter().string(from: .now))</meta></metadata><manifest>\(manifest.joined())</manifest><spine>\(spine.joined())</spine></package>
+        <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(xml(metadata?.title ?? series.title))</dc:title>\(creators)<dc:language>\(xml(metadata?.language ?? "en"))</dc:language><dc:source>\(xml(series.sourceURL.absoluteString))</dc:source><meta property="dcterms:modified">\(ISO8601DateFormatter().string(from: .now))</meta></metadata><manifest>\(manifest.joined())</manifest><spine>\(spine.joined())</spine></package>
         """
     }
 }

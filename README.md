@@ -4,7 +4,7 @@ A private, local-first SwiftUI app for downloading public Archive of Our Own wor
 
 ## Current build
 
-The current implementation supports strict work/chapter/series URL normalization, work and ordered selectable series previews, persistent cross-navigation analysis/download tasks with live progress, discovery of links from each work's Download menu, globally serialized/courteous requests, validated complete-work downloads, separate or combined EPUB/PDF series output, safe filenames, partial/cancellation reports, and auto-renaming. See [implementation status](docs/IMPLEMENTATION_STATUS.md) for important gaps.
+The current implementation supports strict work/chapter/series URL normalization, work and ordered selectable series previews, persistent cross-navigation analysis/download tasks with live progress, discovery of links from each work's Download menu, globally serialized/courteous requests, validated complete-work downloads, separate or combined EPUB/PDF series output, safe filenames, partial/cancellation reports, and auto-renaming. Its durable Library keeps verified series parts for per-item retry, live reselection, custom-metadata recombination, and later reanalysis to discover/download only new or missing parts. See [implementation status](docs/IMPLEMENTATION_STATUS.md) for important gaps.
 
 No Xcode or compiler is required locally. GitHub Actions is the build and test authority:
 

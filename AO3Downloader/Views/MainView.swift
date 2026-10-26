@@ -17,7 +17,7 @@ struct MainView: View {
             switch selection ?? .new {
             case .new: NewDownloadView(model: downloadModel)
             case .queue: DownloadQueueView(model: downloadModel)
-            case .history: HistoryView()
+            case .history: HistoryView(model: downloadModel)
             case .settings: SettingsView()
             case .about: AboutView()
             }

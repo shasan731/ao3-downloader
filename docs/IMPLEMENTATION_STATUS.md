@@ -14,10 +14,17 @@
 - Versioned atomic JSON persistence service and deterministic URL/parser/file/persistence tests.
 - arm64 GitHub Actions test/build/ZIP/DMG/checksum pipeline and tag prerelease workflow.
 
+## Implemented; awaiting the next authoritative CI run
+
+- Durable Library projects with immediate per-part/failure checkpoints, security-scoped destination bookmarks, retained hidden sources for combined-only jobs, and missing-local-file detection.
+- Per-part retry, dynamic deselection during an active download, manual verified-subset recombination after failures, and reanalysis that preserves known selections/downloads while identifying new work IDs.
+- Editable title, authors, language, and managed JPEG/PNG cover metadata for single works, retained parts, new combined books, and existing combined EPUB/PDF files.
+- Synthetic tests for Library round trips, live deselection, retained-source reuse, EPUB package metadata/cover edits, and PDF metadata/cover output.
+
 ## Not yet supported
 
-- Durable per-work queue/recovery and pause/resume/cancel controls.
-- Complete pause/resume/history UI and persisted security-scoped bookmarks.
+- Pause/resume controls (explicit cancellation and later Library recovery are supported).
+- Automatic offline monitoring/notification and a one-click bulk-retry action.
 - Full Retry-After parsing, escalation persistence, retries/offline monitoring, notifications.
 - Developer ID signing and notarization. CI artifacts use an ad-hoc integrity signature only.
 

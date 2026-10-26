@@ -19,6 +19,25 @@ final class PDFMergerTests: XCTestCase {
         XCTAssertEqual(labels, ["A1", "A2", "B1"])
     }
 
+    func testAppliesMetadataAndManagedCover() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try makePDF(at: root.appendingPathComponent("source.pdf"), labels: ["Body"])
+        let cover = root.appendingPathComponent("cover.png")
+        let image = NSImage(size: NSSize(width: 200, height: 300), flipped: false) { rect in
+            NSColor.blue.setFill(); rect.fill(); return true
+        }
+        try XCTUnwrap(image.tiffRepresentation).write(to: cover)
+        let output = root.appendingPathComponent("metadata.pdf")
+        let metadata = EditableBookMetadata(title: "Custom Title", authors: ["Custom Author"], language: "en", coverImageURL: cover)
+        try PDFMerger().merge([input(position: 1, file: source)], metadata: metadata, to: output)
+        let document = try XCTUnwrap(PDFDocument(url: output))
+        XCTAssertEqual(document.pageCount, 2)
+        XCTAssertEqual(document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String, "Custom Title")
+        XCTAssertEqual(document.documentAttributes?[PDFDocumentAttribute.authorAttribute] as? String, "Custom Author")
+    }
+
     private func makePDF(at url: URL, labels: [String]) throws -> URL {
         let document = PDFDocument()
         for label in labels {

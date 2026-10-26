@@ -65,6 +65,13 @@ struct SeriesDownloadProgress: Sendable {
     let outputDirectory: URL
 }
 
+struct EditableBookMetadata: Codable, Hashable, Sendable {
+    var title: String
+    var authors: [String]
+    var language: String
+    var coverImageURL: URL?
+}
+
 struct Work: Identifiable, Codable, Hashable, Sendable {
     let id: String
     var title: String
@@ -134,7 +141,37 @@ struct SeriesDownloadResult: Sendable {
     let directory: URL
     let outputFiles: [URL]
     let combinedFile: URL?
+    let downloadedParts: [DownloadedPart]
     let failures: [SeriesDownloadFailure]
     var isPartial: Bool { !failures.isEmpty }
+}
+
+struct DownloadedPart: Codable, Hashable, Sendable, Identifiable {
+    var id: String { work.id }
+    let entry: SeriesEntry
+    var work: Work
+    var fileURL: URL
+    var metadata: EditableBookMetadata? = nil
+}
+
+enum LibraryRecordKind: String, Codable, Sendable { case work, series }
+
+struct LibraryRecord: Codable, Identifiable, Sendable {
+    let id: UUID
+    let kind: LibraryRecordKind
+    var sourceURL: URL
+    var series: Series?
+    var singleWork: Work?
+    var format: DownloadFormat
+    var outputMode: SeriesOutputMode?
+    var destinationURL: URL
+    var destinationBookmark: Data?
+    var metadata: EditableBookMetadata
+    var downloadedParts: [DownloadedPart]
+    var singleFileURL: URL?
+    var combinedFiles: [URL]
+    var failures: [SeriesDownloadFailure]
+    let createdAt: Date
+    var updatedAt: Date
 }
 

@@ -4,6 +4,7 @@ struct AppDependencies {
     let provider: AO3Providing
     let manager: DownloadManager
     let persistence: DownloadPersistence
+    let libraryStore: LibraryStore
 
     static let live: AppDependencies = {
         let defaults = UserDefaults.standard
@@ -11,7 +12,8 @@ struct AppDependencies {
         let configuredInterval = defaults.object(forKey: "minimumRequestInterval") as? Double ?? 15
         let scheduler = AO3RequestScheduler(minimumInterval: max(10, configuredInterval), persistedCooldown: cooldown)
         let provider = AO3Client(scheduler: scheduler)
-        return AppDependencies(provider: provider, manager: DownloadManager(provider: provider), persistence: DownloadPersistence())
+        return AppDependencies(provider: provider, manager: DownloadManager(provider: provider),
+                               persistence: DownloadPersistence(), libraryStore: LibraryStore())
     }()
 }
 
