@@ -4,6 +4,7 @@ import SwiftSoup
 struct AO3HTMLParser: Sendable {
     func parseWork(_ html: String, link: AO3Link) throws -> Work {
         let document = try SwiftSoup.parse(html, link.canonicalURL.absoluteString)
+        if try isAdultInterstitial(document) { throw AO3Error.adultConsentRequired }
         if try document.select("form#new_user, .restricted, #tos_agree").first() != nil { throw AO3Error.accessRequired }
         if try document.select(".challenge, #challenge-form").first() != nil { throw AO3Error.challenged }
         guard let title = try document.select(".work.meta h2.title, h2.title.heading").first()?.text(), !title.isEmpty else {
@@ -77,6 +78,12 @@ struct AO3HTMLParser: Sendable {
     private func texts(_ selector: String, _ document: Document) throws -> [String] {
         try document.select(selector).array().compactMap { try? $0.text() }.filter { !$0.isEmpty }
     }
+
+    private func isAdultInterstitial(_ document: Document) throws -> Bool {
+        guard try document.select("a[href*=\"view_adult=true\"]").first() != nil else { return false }
+        return try document.select("p.caution.notice, .work.blurb, #main").first() != nil
+    }
+
     private func value(after label: String, in document: Document) throws -> String? {
         guard let dt = try document.select("dt").array().first(where: { ((try? $0.text()) ?? "").hasPrefix(label) }) else { return nil }
         return try dt.nextElementSibling()?.text()

@@ -3,8 +3,10 @@ import SwiftUI
 struct SeriesPreviewView: View {
     let series: Series
     let progressStates: [String: SeriesItemProgressState]
+    let isBusy: Bool
     let onSelectionChanged: (String, Bool) -> Void
     let onSelectAll: (Bool) -> Void
+    let onRetry: (String) -> Void
 
     var body: some View {
         Section("Series Preview") {
@@ -34,6 +36,11 @@ struct SeriesPreviewView: View {
                     }
                     Spacer()
                     progressIcon(for: entry)
+                    if progressStates[entry.workID] == .failed {
+                        Button("Retry") { onRetry(entry.workID) }
+                            .disabled(isBusy)
+                            .accessibilityLabel("Retry Part \(entry.position), \(entry.title)")
+                    }
                     if entry.accessState == .publicAccess { Link("Source", destination: entry.sourceURL) }
                 }
             }

@@ -3,10 +3,14 @@ import SwiftUI
 
 struct NewDownloadView: View {
     @ObservedObject var model: NewDownloadViewModel
+    @AppStorage("allowAdultContent") private var allowAdultContent = false
     var body: some View {
         Form {
             Section("Source") {
                 HStack { TextField("https://archiveofourown.org/works/…", text: $model.input).textFieldStyle(.roundedBorder).accessibilityLabel("AO3 URL").disabled(model.isBusy); Button("Paste") { model.paste() }.disabled(model.isBusy); Button("Analyze URL") { model.startAnalyze() }.keyboardShortcut(.return).disabled(model.isBusy || model.input.isEmpty) }
+                Toggle("Allow public Mature/Explicit works", isOn: $allowAdultContent)
+                Text("This sends AO3’s “Yes, continue” choice with work requests. It does not share browser cookies or sign in to AO3.")
+                    .font(.footnote).foregroundStyle(.secondary)
                 Text(model.status).foregroundStyle(model.work == nil ? .secondary : .primary).textSelection(.enabled)
             }
             if let operation = model.activeOperation { OperationProgressView(operation: operation, canCancel: model.isBusy, onCancel: model.cancelOperation) }
@@ -14,8 +18,10 @@ struct NewDownloadView: View {
             if let series = model.series {
                 SeriesPreviewView(series: series,
                                   progressStates: model.seriesItemStates,
+                                  isBusy: model.isBusy,
                                   onSelectionChanged: { model.setSelection($1, for: $0) },
-                                  onSelectAll: { model.selectAllSeriesWorks($0) })
+                                  onSelectAll: { model.selectAllSeriesWorks($0) },
+                                  onRetry: model.retryPart)
             }
             if model.work != nil || model.series != nil { MetadataEditorView(model: model) }
             Section("Download") {

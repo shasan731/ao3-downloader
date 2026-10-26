@@ -287,6 +287,7 @@ actor DownloadManager {
     private func category(for error: Error) -> String {
         guard let error = error as? AO3Error else { return "unexpected" }
         switch error {
+        case .adultConsentRequired: return "adult-consent-required"
         case .accessRequired: return "access-required"
         case .unavailable: return "unavailable"
         case .formatUnavailable: return "format-unavailable"

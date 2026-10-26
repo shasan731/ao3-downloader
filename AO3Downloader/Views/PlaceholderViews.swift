@@ -151,6 +151,24 @@ struct HistoryView: View {
         }
     }
 }
-struct SettingsView: View { @AppStorage("minimumRequestInterval") private var interval = 15.0; var body: some View { Form { Section("Network Courtesy") { Stepper("Minimum request interval: \(Int(interval)) seconds", value: $interval, in: 10...120, step: 5); Text("This conservative setting is not an AO3-provided quota. Changes apply after relaunch; slower is gentler.").foregroundStyle(.secondary) } }.padding().frame(minWidth: 480) } }
+struct SettingsView: View {
+    @AppStorage("minimumRequestInterval") private var interval = 15.0
+    @AppStorage("allowAdultContent") private var allowAdultContent = false
+
+    var body: some View {
+        Form {
+            Section("Content Access") {
+                Toggle("Allow public Mature/Explicit works", isOn: $allowAdultContent)
+                Text("Equivalent to choosing “Yes, continue” on AO3’s warning page. This app does not use your browser session, AO3 account, or login-only works.")
+                    .foregroundStyle(.secondary)
+            }
+            Section("Network Courtesy") {
+                Stepper("Minimum request interval: \(Int(interval)) seconds", value: $interval, in: 10...120, step: 5)
+                Text("This conservative setting is not an AO3-provided quota. Changes apply after relaunch; slower is gentler.")
+                    .foregroundStyle(.secondary)
+            }
+        }.padding().frame(minWidth: 480)
+    }
+}
 struct AboutView: View { var body: some View { VStack(spacing: 16) { Image(systemName: "arrow.down.doc").font(.system(size: 56)); Text("AO3 Downloader").font(.largeTitle); Text("Unofficial application; not affiliated with AO3 or the Organization for Transformative Works.").multilineTextAlignment(.center); Link("Source repository", destination: URL(string: "https://github.com/shasan731/ao3-downloader")!); Link("AO3 Terms of Service FAQ", destination: URL(string: "https://archiveofourown.org/tos_faq")!) }.padding(40).frame(maxWidth: 600) } }
 

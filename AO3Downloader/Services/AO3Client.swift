@@ -37,19 +37,31 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     private let transport: HTTPTransport
     private let scheduler: AO3RequestScheduler
     private let parser: AO3HTMLParser
+    private let allowsAdultContent: @Sendable () -> Bool
     private let userAgent = "AO3Downloader/0.1 (unofficial personal-use app; https://github.com/shasan731/ao3-downloader)"
 
-    init(transport: HTTPTransport = URLSessionTransport(), scheduler: AO3RequestScheduler, parser: AO3HTMLParser = .init()) {
-        self.transport = transport; self.scheduler = scheduler; self.parser = parser
+    init(transport: HTTPTransport = URLSessionTransport(), scheduler: AO3RequestScheduler,
+         parser: AO3HTMLParser = .init(),
+         allowsAdultContent: @escaping @Sendable () -> Bool = {
+             UserDefaults.standard.bool(forKey: "allowAdultContent")
+         }) {
+        self.transport = transport
+        self.scheduler = scheduler
+        self.parser = parser
+        self.allowsAdultContent = allowsAdultContent
     }
 
     func analyze(_ link: AO3Link) async throws -> Work {
         guard link.kind == .work else { throw AO3Error.unsupportedPath }
+        let requestURL = workRequestURL(for: link)
         let (data, response) = try await scheduler.perform { [transport, userAgent] in
-            var request = URLRequest(url: link.canonicalURL); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            var request = URLRequest(url: requestURL); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
             return try await transport.data(for: request)
         }
         try classify(response, body: data)
+        guard let responseURL = response.url, isAllowedWorkPage(responseURL, workID: link.id) else {
+            throw AO3Error.unsafeRedirect
+        }
         guard data.count <= 8_000_000, let html = String(data: data, encoding: .utf8) else {
             throw AO3Error.siteLayoutChanged("invalid or oversized HTML")
         }
@@ -131,7 +143,33 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     }
 
     private func isApproved(_ url: URL) -> Bool {
-        url.scheme == "https" && ["archiveofourown.org", "download.archiveofourown.org"].contains(url.host?.lowercased() ?? "")
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+        return components.scheme?.lowercased() == "https"
+            && ["archiveofourown.org", "download.archiveofourown.org"].contains(components.host?.lowercased() ?? "")
+            && components.user == nil && components.password == nil && components.port == nil
+            && components.fragment == nil
+    }
+
+    private func workRequestURL(for link: AO3Link) -> URL {
+        guard allowsAdultContent(), var components = URLComponents(url: link.canonicalURL, resolvingAgainstBaseURL: false) else {
+            return link.canonicalURL
+        }
+        components.queryItems = [URLQueryItem(name: "view_adult", value: "true")]
+        return components.url ?? link.canonicalURL
+    }
+
+    private func isAllowedWorkPage(_ url: URL, workID: String) -> Bool {
+        guard isApproved(url), url.host?.lowercased() == "archiveofourown.org",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+        let parts = components.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        let isCanonicalWork = parts == ["works", workID]
+        let isChapterOfWork = parts.count == 4 && parts[0] == "works" && parts[1] == workID
+            && parts[2] == "chapters" && !parts[3].isEmpty && parts[3].allSatisfy(\.isNumber)
+        guard isCanonicalWork || isChapterOfWork else { return false }
+        return (components.queryItems ?? []).allSatisfy { item in
+            item.name == "view_adult" && item.value == "true"
+                || item.name == "view_full_work" && item.value == "true"
+        }
     }
 
     private func isAllowedSeriesPage(_ url: URL, seriesID: String) -> Bool {

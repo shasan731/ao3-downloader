@@ -4,6 +4,7 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
     case invalidURL(String)
     case unsupportedHost
     case unsupportedPath
+    case adultConsentRequired
     case accessRequired
     case unavailable
     case challenged
@@ -25,6 +26,7 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
         case .invalidURL(let reason): return "That URL is not valid: \(reason)."
         case .unsupportedHost: return "Use an HTTPS URL from archiveofourown.org."
         case .unsupportedPath: return "Paste an AO3 work, chapter, or series URL."
+        case .adultConsentRequired: return "AO3 requires confirmation before showing this public Mature/Explicit work. Enable ‘Allow public Mature/Explicit works’ and retry."
         case .accessRequired: return "This work requires access in your web browser. The app does not collect AO3 passwords or cookies."
         case .unavailable: return "This work is unavailable or has been removed."
         case .challenged: return "AO3 returned an anti-bot or verification page. Open the source in your browser; the app will not bypass it."
