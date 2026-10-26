@@ -56,7 +56,7 @@ struct BookMetadataEditor: Sendable {
             while let candidate = enumerator?.nextObject() as? URL {
                 if candidate.lastPathComponent == "container.xml",
                    candidate.deletingLastPathComponent().lastPathComponent == "META-INF" {
-                    containerURL = candidate
+                    containerURL = URL(fileURLWithPath: candidate.path)
                     break
                 }
             }
@@ -121,7 +121,8 @@ struct BookMetadataEditor: Sendable {
             package = insertAfterOpeningTag("spine", content: "<itemref idref=\"ao3downloader-cover-page\"/>", in: package)
         }
         try Data(package.utf8).write(to: packageURL, options: .atomic)
-        try createEPUB(from: epubRoot, at: output)
+        do { try createEPUB(from: epubRoot, at: output) }
+        catch { throw AO3Error.mergeFailed("the edited EPUB could not be rebuilt: \(error.localizedDescription)") }
     }
 
     private func createEPUB(from root: URL, at output: URL) throws {
@@ -135,11 +136,13 @@ struct BookMetadataEditor: Sendable {
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
         var paths: [String] = []
         while let url = enumerator?.nextObject() as? URL {
-            guard url.lastPathComponent != "mimetype",
-                  (try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile ?? false) else { continue }
-            paths.append(String(url.path.dropFirst(root.path.count + 1)))
+            let absolute = URL(fileURLWithPath: url.path)
+            guard absolute.lastPathComponent != "mimetype",
+                  (try absolute.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile ?? false) else { continue }
+            paths.append(String(absolute.path.dropFirst(root.path.count + 1)))
         }
-        for path in paths.sorted() { try archive.addEntry(with: path, relativeTo: root, compressionMethod: .deflate) }
+        let absoluteRoot = URL(fileURLWithPath: root.path, isDirectory: true)
+        for path in paths.sorted() { try archive.addEntry(with: path, relativeTo: absoluteRoot, compressionMethod: .deflate) }
     }
 
     private func extractEPUB(_ source: URL, to root: URL) throws {
