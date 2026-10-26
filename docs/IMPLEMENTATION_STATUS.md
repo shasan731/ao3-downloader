@@ -23,5 +23,5 @@
 
 ## Verification state
 
-GitHub Actions run [#10](https://github.com/shasan731/ao3-downloader/actions/runs/40355157536) passed on October 26, 2026 for commit `34755cb`: synthetic single-work, selectable-series, EPUB-merger, and PDF-merger tests; arm64 Release build; ad-hoc signature verification; ZIP/DMG packaging; checksums; and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
+GitHub Actions run [#12](https://github.com/shasan731/ao3-downloader/actions/runs/40361375886) passed on October 26, 2026 for commit `ca45227`: synthetic single-work, selectable-series, ordered-progress, queued-cancellation, EPUB-merger, and PDF-merger tests; arm64 Release build; ad-hoc signature verification; ZIP/DMG packaging; checksums; and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
 
