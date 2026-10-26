@@ -38,9 +38,10 @@ struct BookMetadataEditor: Sendable {
     private func editEPUB(_ metadata: EditableBookMetadata, source: URL, output: URL) throws {
         try DownloadValidator().validate(file: source, format: .epub)
         let fileManager = FileManager.default
-        let root = fileManager.temporaryDirectory.appendingPathComponent("AO3Metadata-\(UUID().uuidString)", isDirectory: true)
-        defer { try? fileManager.removeItem(at: root) }
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
+        let staging = fileManager.temporaryDirectory.appendingPathComponent("AO3Metadata-\(UUID().uuidString)", isDirectory: true)
+        let root = staging.appendingPathComponent("Package", isDirectory: true)
+        defer { try? fileManager.removeItem(at: staging) }
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         try fileManager.unzipItem(at: source, to: root)
 
         let delegate = MetadataContainerDelegate()
