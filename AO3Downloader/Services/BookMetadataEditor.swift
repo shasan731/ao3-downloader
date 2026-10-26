@@ -59,18 +59,23 @@ struct BookMetadataEditor: Sendable {
             }
         }
         guard let containerURL else { throw AO3Error.mergeFailed("the EPUB has no readable container") }
-        let epubRoot = containerURL.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL
+        let epubRoot = URL(fileURLWithPath: containerURL.deletingLastPathComponent().deletingLastPathComponent().path,
+                           isDirectory: true).standardizedFileURL
         guard epubRoot.path.hasPrefix(root.standardizedFileURL.path) else {
             throw AO3Error.mergeFailed("the EPUB container escapes its extraction directory")
         }
-        guard let parser = XMLParser(contentsOf: containerURL) else {
+        let containerData: Data
+        do { containerData = try Data(contentsOf: URL(fileURLWithPath: containerURL.path)) }
+        catch { throw AO3Error.mergeFailed("the EPUB has no readable container") }
+        let parser = XMLParser(data: containerData)
+        if containerData.isEmpty {
             throw AO3Error.mergeFailed("the EPUB has no readable container")
         }
         parser.delegate = delegate
         guard parser.parse(), let packagePath = delegate.rootfile, safeRelativePath(packagePath) else {
             throw AO3Error.mergeFailed("the EPUB package path is invalid")
         }
-        let packageURL = epubRoot.appendingPathComponent(packagePath).standardizedFileURL
+        let packageURL = URL(fileURLWithPath: epubRoot.appendingPathComponent(packagePath).path).standardizedFileURL
         guard packageURL.path.hasPrefix(epubRoot.path + "/"),
               var package = try? String(contentsOf: packageURL, encoding: .utf8) else {
             throw AO3Error.mergeFailed("the EPUB package is unreadable")
