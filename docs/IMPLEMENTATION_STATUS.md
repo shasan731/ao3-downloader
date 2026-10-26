@@ -21,5 +21,5 @@
 
 ## Verification state
 
-GitHub Actions run [#4](https://github.com/shasan731/ao3-downloader/actions/runs/40285823820) passed on October 26, 2026 for commit `bf2be60`: synthetic tests, arm64 Release build, app-bundle verification, ZIP/DMG packaging, checksums, and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
+GitHub Actions run [#5](https://github.com/shasan731/ao3-downloader/actions/runs/40287116421) passed on October 26, 2026 for commit `d9669a2`: synthetic tests, arm64 Release build, ad-hoc signature verification, ZIP/DMG packaging, checksums, and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
 
