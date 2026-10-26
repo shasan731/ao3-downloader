@@ -313,7 +313,7 @@ struct PDFMerger: Sendable {
         PDFDestination(page: page, at: NSPoint(x: 0, y: page.bounds(for: .mediaBox).height))
     }
 
-    private func illustratedPage(_ drawing: (NSRect) -> Void) throws -> PDFPage {
+    private func illustratedPage(_ drawing: @escaping (NSRect) -> Void) throws -> PDFPage {
         let image = NSImage(size: pageSize, flipped: false) { rect in
             NSColor.white.setFill(); rect.fill()
             drawing(rect)
