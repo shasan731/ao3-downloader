@@ -54,6 +54,7 @@ actor DownloadManager {
                 failures.append(failure(for: entry, category: category(for: error), message: error.localizedDescription))
             }
         }
+        failures.sort { $0.position < $1.position }
         if !failures.isEmpty { try writeReport(series: series, format: format, failures: failures, outputs: outputs, to: directory) }
         return SeriesDownloadResult(directory: directory, outputFiles: outputs, failures: failures)
     }
