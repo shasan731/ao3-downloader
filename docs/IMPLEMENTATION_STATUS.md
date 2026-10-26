@@ -1,6 +1,6 @@
 # Implementation status
 
-## Implemented (source present; CI not yet run)
+## Implemented and CI-verified
 
 - Native macOS 14 SwiftUI navigation shell, work input/preview, folder chooser, format picker, open/reveal actions, Settings and About.
 - Exact HTTPS host/path validation and chapter-to-work normalization.
@@ -21,5 +21,5 @@
 
 ## Verification state
 
-No local compiler or test suite was run, per project constraints. GitHub Actions has not yet been triggered or inspected. AO3 selectors are based on synthetic fixtures and require one supervised, low-volume real-site smoke test after CI succeeds. No claim of production compatibility is made until then.
+GitHub Actions run [#4](https://github.com/shasan731/ao3-downloader/actions/runs/40285823820) passed on October 26, 2026 for commit `bf2be60`: synthetic tests, arm64 Release build, app-bundle verification, ZIP/DMG packaging, checksums, and artifact upload all completed successfully. No local compiler or test suite was run, per project constraints. AO3 selectors are based on synthetic fixtures and still require one supervised, low-volume real-site smoke test. No claim of production AO3 compatibility is made until then.
 
