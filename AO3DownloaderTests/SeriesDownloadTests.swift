@@ -22,6 +22,11 @@ private actor SyntheticSeriesProvider: AO3Providing {
     }
 }
 
+private actor ProgressRecorder {
+    private(set) var updates: [SeriesDownloadProgress] = []
+    func append(_ update: SeriesDownloadProgress) { updates.append(update) }
+}
+
 final class SeriesDownloadTests: XCTestCase {
     func testRetainsSuccessesAndReportsEveryFailure() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -34,10 +39,18 @@ final class SeriesDownloadTests: XCTestCase {
                                 .init(workID: "102", position: 2, title: "Second", sourceURL: URL(string: "https://archiveofourown.org/works/102")!, accessState: .publicAccess, selected: true),
                                 .init(workID: "unavailable-page-1-3", position: 3, title: "Unavailable", sourceURL: source, accessState: .unavailable, selected: false)
                             ], isCompletePagination: true)
-        let result = try await DownloadManager(provider: SyntheticSeriesProvider()).download(series: series, format: .html, outputMode: .separate, to: root)
+        let recorder = ProgressRecorder()
+        let result = try await DownloadManager(provider: SyntheticSeriesProvider()).download(series: series, format: .html, outputMode: .separate, to: root) {
+            await recorder.append($0)
+        }
         XCTAssertEqual(result.outputFiles.count, 1)
         XCTAssertTrue(result.outputFiles[0].lastPathComponent.hasPrefix("01 - "))
         XCTAssertEqual(result.failures.map(\.position), [2, 3])
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.directory.appendingPathComponent("download-report.json").path))
+        let updates = await recorder.updates
+        XCTAssertEqual(updates.last?.completedCount, 2)
+        XCTAssertEqual(updates.last?.totalCount, 2)
+        XCTAssertTrue(updates.contains { $0.currentWorkID == "101" && $0.currentItemState == .completed })
+        XCTAssertTrue(updates.contains { $0.currentWorkID == "102" && $0.currentItemState == .failed })
     }
 }

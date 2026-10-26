@@ -10,7 +10,11 @@ actor AO3RequestScheduler {
     private let sleeper: Sleeping
     private let now: @Sendable () -> Date
     private var inFlight = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
+    }
+    private var waiters: [Waiter] = []
 
     init(minimumInterval: TimeInterval = 15, persistedCooldown: Date = .distantPast,
          sleeper: Sleeping = ContinuousSleeper(), now: @escaping @Sendable () -> Date = Date.init,
@@ -21,7 +25,7 @@ actor AO3RequestScheduler {
     }
 
     func perform<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
-        await acquire()
+        try await acquire()
         defer { release() }
         let delay = max(0, nextAllowedAt.timeIntervalSince(now()))
         if delay > 0 { try await sleeper.sleep(for: .seconds(delay)) }
@@ -30,13 +34,31 @@ actor AO3RequestScheduler {
         return try await operation()
     }
 
-    private func acquire() async {
+    private func acquire() async throws {
+        try Task.checkCancellation()
         guard inFlight else { inFlight = true; return }
-        await withCheckedContinuation { waiters.append($0) }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                } else {
+                    waiters.append(.init(id: id, continuation: continuation))
+                }
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(id) }
+        }
     }
 
     private func release() {
-        if waiters.isEmpty { inFlight = false } else { waiters.removeFirst().resume() }
+        if waiters.isEmpty { inFlight = false } else { waiters.removeFirst().continuation.resume() }
+    }
+
+    private func cancelWaiter(_ id: UUID) {
+        if let index = waiters.firstIndex(where: { $0.id == id }) {
+            waiters.remove(at: index).continuation.resume(throwing: CancellationError())
+        }
     }
 
     func applyCooldown(until date: Date) { nextAllowedAt = max(nextAllowedAt, date) }

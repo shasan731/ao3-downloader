@@ -30,7 +30,8 @@ actor DownloadManager {
         }
     }
 
-    func download(series: Series, format: DownloadFormat, outputMode: SeriesOutputMode, to parent: URL) async throws -> SeriesDownloadResult {
+    func download(series: Series, format: DownloadFormat, outputMode: SeriesOutputMode, to parent: URL,
+                  progress: @escaping @Sendable (SeriesDownloadProgress) async -> Void = { _ in }) async throws -> SeriesDownloadResult {
         let selected = series.orderedWorks.filter { $0.selected && $0.accessState == .publicAccess }
         guard !selected.isEmpty else { throw AO3Error.noSeriesWorksSelected }
         if outputMode != .separate && format == .html { throw AO3Error.combinedFormatUnsupported(format) }
@@ -42,12 +43,20 @@ actor DownloadManager {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
         var outputs: [URL] = []
         var downloaded: [DownloadedSeriesWork] = []
+        var processedCount = 0
         var failures: [SeriesDownloadFailure] = series.orderedWorks
             .filter { $0.accessState != .publicAccess }
             .map { failure(for: $0, category: "inaccessible", message: "The series entry is unavailable to a logged-out reader.") }
+        await progress(.init(stage: .downloading, totalCount: selected.count, completedCount: 0,
+                             failedCount: 0, currentWorkID: nil, currentTitle: nil, currentItemState: nil, outputDirectory: directory))
 
-        for entry in selected.sorted(by: { $0.position < $1.position }) {
+        let orderedSelected = selected.sorted(by: { $0.position < $1.position })
+        for (selectedIndex, entry) in orderedSelected.enumerated() {
+            await progress(.init(stage: .downloading, totalCount: selected.count, completedCount: processedCount,
+                                 failedCount: failures.filter { $0.accessStateEquivalent }.count,
+                                 currentWorkID: entry.workID, currentTitle: entry.title, currentItemState: .downloading, outputDirectory: directory))
             do {
+                try Task.checkCancellation()
                 let link = try AO3URLParser().parse(entry.sourceURL.absoluteString)
                 let work = try await provider.analyze(link)
                 let staged = try await provider.download(work, format: format)
@@ -59,14 +68,42 @@ actor DownloadManager {
                 try DownloadValidator().validate(file: target, format: format)
                 outputs.append(target)
                 downloaded.append(.init(entry: entry, work: work, fileURL: target))
+                processedCount += 1
+                await progress(.init(stage: .downloading, totalCount: selected.count, completedCount: processedCount,
+                                     failedCount: failures.filter { $0.accessStateEquivalent }.count,
+                                     currentWorkID: entry.workID, currentTitle: entry.title, currentItemState: .completed, outputDirectory: directory))
+            } catch is CancellationError {
+                let remaining = orderedSelected[selectedIndex...]
+                failures.append(contentsOf: remaining.map {
+                    failure(for: $0, category: "cancelled", message: "Not downloaded because the user cancelled the operation.")
+                })
+                failures.sort { $0.position < $1.position }
+                try? writeReport(series: series, format: format, failures: failures, outputs: outputs, to: directory)
+                await progress(.init(stage: .cancelled, totalCount: selected.count, completedCount: processedCount,
+                                     failedCount: 0, currentWorkID: entry.workID, currentTitle: entry.title,
+                                     currentItemState: .pending, outputDirectory: directory))
+                throw CancellationError()
             } catch {
                 failures.append(failure(for: entry, category: category(for: error), message: error.localizedDescription))
+                processedCount += 1
+                await progress(.init(stage: .downloading, totalCount: selected.count, completedCount: processedCount,
+                                     failedCount: failures.filter { $0.accessStateEquivalent }.count,
+                                     currentWorkID: entry.workID, currentTitle: entry.title, currentItemState: .failed, outputDirectory: directory))
             }
         }
         failures.sort { $0.position < $1.position }
         if !failures.isEmpty { try writeReport(series: series, format: format, failures: failures, outputs: outputs, to: directory) }
         var combinedFile: URL?
         if outputMode != .separate && failures.isEmpty {
+            if Task.isCancelled {
+                await progress(.init(stage: .cancelled, totalCount: selected.count, completedCount: selected.count,
+                                     failedCount: 0, currentWorkID: nil, currentTitle: nil,
+                                     currentItemState: nil, outputDirectory: directory))
+                throw CancellationError()
+            }
+            await progress(.init(stage: .assembling, totalCount: selected.count, completedCount: selected.count,
+                                 failedCount: 0, currentWorkID: nil, currentTitle: series.title,
+                                 currentItemState: nil, outputDirectory: directory))
             let author = Array(Set(downloaded.flatMap { $0.work.creators })).sorted().joined(separator: ", ")
             let base = naming.sanitize("\(series.title) - \(author.isEmpty ? "Unknown Creator" : author) [AO3-Series-\(series.id)].\(format.fileExtension)")
             let target = naming.availableURL(in: directory, filename: base)
@@ -80,16 +117,28 @@ actor DownloadManager {
                     throw AO3Error.combinedFormatUnsupported(format)
                 }
                 combinedFile = target
+                await progress(.init(stage: .verifying, totalCount: selected.count, completedCount: selected.count,
+                                     failedCount: 0, currentWorkID: nil, currentTitle: target.lastPathComponent,
+                                     currentItemState: nil, outputDirectory: directory))
                 if outputMode == .combined {
                     for output in outputs { try? FileManager.default.removeItem(at: output) }
                     outputs = []
                 }
+            } catch is CancellationError {
+                try? FileManager.default.removeItem(at: target)
+                await progress(.init(stage: .cancelled, totalCount: selected.count, completedCount: selected.count,
+                                     failedCount: 0, currentWorkID: nil, currentTitle: nil,
+                                     currentItemState: nil, outputDirectory: directory))
+                throw CancellationError()
             } catch {
                 try? FileManager.default.removeItem(at: target)
                 if let error = error as? AO3Error { throw error }
                 throw AO3Error.mergeFailed(error.localizedDescription)
             }
         }
+        await progress(.init(stage: .completed, totalCount: selected.count, completedCount: selected.count,
+                             failedCount: failures.filter { $0.accessStateEquivalent }.count,
+                             currentWorkID: nil, currentTitle: nil, currentItemState: nil, outputDirectory: directory))
         return SeriesDownloadResult(directory: directory, outputFiles: outputs, combinedFile: combinedFile, failures: failures)
     }
 
@@ -129,5 +178,9 @@ actor DownloadManager {
         let data = try JSONEncoder().encode(report)
         try data.write(to: directory.appendingPathComponent("download-report.json"), options: .atomic)
     }
+}
+
+private extension SeriesDownloadFailure {
+    var accessStateEquivalent: Bool { !workID.hasPrefix("unavailable-") }
 }
 

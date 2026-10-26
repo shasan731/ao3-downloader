@@ -68,6 +68,7 @@ struct EPUBMerger: Sendable {
         var authors: [String] = []
 
         for input in inputs.sorted(by: { $0.entry.position < $1.entry.position }) {
+            try Task.checkCancellation()
             try DownloadValidator().validate(file: input.fileURL, format: .epub)
             let extracted = root.appendingPathComponent("Source-\(input.entry.position)", isDirectory: true)
             try fileManager.createDirectory(at: extracted, withIntermediateDirectories: true)
@@ -86,6 +87,7 @@ struct EPUBMerger: Sendable {
             var chapterLinks: [String] = []
             var mergedIDs: [String: String] = [:]
             for (itemIndex, item) in package.manifest.values.sorted(by: { $0.id < $1.id }).enumerated() {
+                try Task.checkCancellation()
                 guard isSafeRelativePath(item.href) else {
                     throw AO3Error.mergeFailed("part \(input.entry.position) contains an unsafe manifest path")
                 }
@@ -190,7 +192,10 @@ struct EPUBMerger: Sendable {
             guard url != root.appendingPathComponent("mimetype"), (try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile ?? false) else { continue }
             paths.append(String(url.path.dropFirst(root.path.count + 1)))
         }
-        for path in paths.sorted() { try archive.addEntry(with: path, relativeTo: root, compressionMethod: .deflate) }
+        for path in paths.sorted() {
+            try Task.checkCancellation()
+            try archive.addEntry(with: path, relativeTo: root, compressionMethod: .deflate)
+        }
     }
 
     private func isSafeRelativePath(_ path: String) -> Bool {

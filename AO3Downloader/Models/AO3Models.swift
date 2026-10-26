@@ -23,6 +23,48 @@ enum SeriesOutputMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
+enum OperationKind: String, Sendable { case analysis, download }
+enum OperationStage: String, Sendable {
+    case validating = "Validating URL"
+    case fetching = "Fetching metadata"
+    case downloading = "Downloading works"
+    case assembling = "Assembling combined book"
+    case verifying = "Verifying output"
+    case completed = "Completed"
+    case cancelled = "Cancelled"
+    case failed = "Failed"
+}
+
+enum SeriesItemProgressState: String, Sendable {
+    case pending, skipped, downloading, completed, failed, inaccessible
+}
+
+struct ActiveOperation: Sendable {
+    let kind: OperationKind
+    var stage: OperationStage
+    let startedAt: Date
+    var completedCount: Int
+    var totalCount: Int?
+    var currentTitle: String?
+    var detail: String
+}
+
+struct SeriesAnalysisProgress: Sendable {
+    let pagesCompleted: Int
+    let worksDiscovered: Int
+}
+
+struct SeriesDownloadProgress: Sendable {
+    let stage: OperationStage
+    let totalCount: Int
+    let completedCount: Int
+    let failedCount: Int
+    let currentWorkID: String?
+    let currentTitle: String?
+    let currentItemState: SeriesItemProgressState?
+    let outputDirectory: URL
+}
+
 struct Work: Identifiable, Codable, Hashable, Sendable {
     let id: String
     var title: String

@@ -13,10 +13,12 @@ struct PDFMerger: Sendable {
         let output = PDFDocument()
         var expectedPages = 0
         for input in inputs.sorted(by: { $0.entry.position < $1.entry.position }) {
+            try Task.checkCancellation()
             guard let source = PDFDocument(url: input.fileURL), !source.isLocked, source.pageCount > 0 else {
                 throw AO3Error.mergeFailed("part \(input.entry.position), \(input.work.title), is malformed or password-protected")
             }
             for index in 0..<source.pageCount {
+                try Task.checkCancellation()
                 guard let page = source.page(at: index) else {
                     throw AO3Error.mergeFailed("part \(input.entry.position) has an unreadable page")
                 }

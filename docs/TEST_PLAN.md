@@ -1,6 +1,6 @@
 # Test plan
 
-Automated tests use synthetic fixtures only and cover accepted/rejected URL shapes, normalization, core work metadata/download-menu extraction, layout failure, ordered multi-page series parsing, inaccessible series entries, merged EPUB 3 structure/navigation/resource namespacing, merged PDF page order, Unicode/path sanitization, request serialization, and persistence round trips. CI compiles, runs the suite, validates bundle identity, ad-hoc signature, and arm64 architecture, then packages ZIP/DMG checksums.
+Automated tests use synthetic fixtures only and cover accepted/rejected URL shapes, normalization, core work metadata/download-menu extraction, layout failure, ordered multi-page series parsing, inaccessible series entries, ordered per-work progress updates, cancellation while waiting for the global request lease, merged EPUB 3 structure/navigation/resource namespacing, merged PDF page order, Unicode/path sanitization, request serialization, and persistence round trips. CI compiles, runs the suite, validates bundle identity, ad-hoc signature, and arm64 architecture, then packages ZIP/DMG checksums.
 
 Gaps to add with later phases: full fake-clock cooldown tests, transport response matrix, crash recovery, series download recovery, broader malformed EPUB variations, PDF outline/bookmark tests, and view-model state tests.
 

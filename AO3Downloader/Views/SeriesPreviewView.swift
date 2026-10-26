@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SeriesPreviewView: View {
     let series: Series
+    let progressStates: [String: SeriesItemProgressState]
     let onSelectionChanged: (String, Bool) -> Void
     let onSelectAll: (Bool) -> Void
 
@@ -32,9 +33,27 @@ struct SeriesPreviewView: View {
                         }
                     }
                     Spacer()
+                    progressIcon(for: entry)
                     if entry.accessState == .publicAccess { Link("Source", destination: entry.sourceURL) }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func progressIcon(for entry: SeriesEntry) -> some View {
+        if entry.accessState != .publicAccess {
+            Image(systemName: "lock.fill").foregroundStyle(.red).accessibilityLabel("Inaccessible")
+        } else if progressStates[entry.workID] == .completed {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).accessibilityLabel("Completed")
+        } else if progressStates[entry.workID] == .downloading {
+            ProgressView().controlSize(.small).accessibilityLabel("Downloading")
+        } else if progressStates[entry.workID] == .failed {
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red).accessibilityLabel("Failed")
+        } else if progressStates[entry.workID] == .skipped {
+            Image(systemName: "minus.circle").foregroundStyle(.secondary).accessibilityLabel("Not selected")
+        } else if !entry.selected {
+            Image(systemName: "circle").foregroundStyle(.secondary).accessibilityLabel("Not selected")
         }
     }
 }

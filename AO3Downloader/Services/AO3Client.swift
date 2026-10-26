@@ -21,7 +21,16 @@ struct URLSessionTransport: HTTPTransport {
 protocol AO3Providing: Sendable {
     func analyze(_ link: AO3Link) async throws -> Work
     func analyzeSeries(_ link: AO3Link) async throws -> Series
+    func analyzeSeries(_ link: AO3Link, progress: @escaping @Sendable (SeriesAnalysisProgress) async -> Void) async throws -> Series
     func download(_ work: Work, format: DownloadFormat) async throws -> URL
+}
+
+extension AO3Providing {
+    func analyzeSeries(_ link: AO3Link, progress: @escaping @Sendable (SeriesAnalysisProgress) async -> Void) async throws -> Series {
+        let series = try await analyzeSeries(link)
+        await progress(.init(pagesCompleted: 1, worksDiscovered: series.orderedWorks.count))
+        return series
+    }
 }
 
 final class AO3Client: AO3Providing, @unchecked Sendable {
@@ -48,6 +57,10 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     }
 
     func analyzeSeries(_ link: AO3Link) async throws -> Series {
+        try await analyzeSeries(link, progress: { _ in })
+    }
+
+    func analyzeSeries(_ link: AO3Link, progress: @escaping @Sendable (SeriesAnalysisProgress) async -> Void) async throws -> Series {
         guard link.kind == .series else { throw AO3Error.unsupportedPath }
         let pageLimit = 50
         var pageURL: URL? = link.canonicalURL
@@ -80,6 +93,7 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
                               sourceURL: entry.sourceURL, accessState: entry.accessState, selected: entry.selected)
                 combined?.orderedWorks.append(entry)
             }
+            await progress(.init(pagesCompleted: visitedPages.count, worksDiscovered: combined?.orderedWorks.count ?? 0))
             pageURL = next
         }
         if pageURL != nil { throw AO3Error.seriesTooLarge(pageLimit) }
