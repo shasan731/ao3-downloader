@@ -133,16 +133,19 @@ struct BookMetadataEditor: Sendable {
         try archive.addEntry(with: "mimetype", type: .file, uncompressedSize: Int64(mime.count), compressionMethod: .none) { position, size in
             mime.subdata(in: Int(position)..<Int(position) + size)
         }
-        let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
-        var paths: [String] = []
-        while let url = enumerator?.nextObject() as? URL {
-            let absolute = URL(fileURLWithPath: url.path)
-            guard absolute.lastPathComponent != "mimetype",
-                  (try absolute.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile ?? false) else { continue }
-            paths.append(String(absolute.path.dropFirst(root.path.count + 1)))
+        let paths = try FileManager.default.subpathsOfDirectory(atPath: root.path).filter { relative in
+            guard relative != "mimetype", !relative.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else { return false }
+            let path = (root.path as NSString).appendingPathComponent(relative)
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            return attributes?[.type] as? FileAttributeType == .typeRegular
         }
-        let absoluteRoot = URL(fileURLWithPath: root.path, isDirectory: true)
-        for path in paths.sorted() { try archive.addEntry(with: path, relativeTo: absoluteRoot, compressionMethod: .deflate) }
+        for path in paths.sorted() {
+            let absolutePath = (root.path as NSString).appendingPathComponent(path)
+            let data = try Data(contentsOf: URL(fileURLWithPath: absolutePath), options: .mappedIfSafe)
+            try archive.addEntry(with: path, type: .file, uncompressedSize: Int64(data.count), compressionMethod: .deflate) { position, size in
+                data.subdata(in: Int(position)..<Int(position) + size)
+            }
+        }
     }
 
     private func extractEPUB(_ source: URL, to root: URL) throws {
