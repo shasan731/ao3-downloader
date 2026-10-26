@@ -8,4 +8,7 @@ test -x "$binary"
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
 test "$bundle_id" = "com.shasan731.AO3Downloader"
 /usr/bin/plutil -lint "$app/Contents/Info.plist"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
+signature=$(/usr/bin/codesign -d --verbose=4 "$app" 2>&1)
+printf '%s\n' "$signature" | /usr/bin/grep -q 'Signature=adhoc'
 

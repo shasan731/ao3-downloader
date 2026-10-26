@@ -20,8 +20,11 @@ jobs:
         run: |
           xcodegen generate --spec project.yml
           xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" CODE_SIGNING_ALLOWED=NO test build
-          Scripts/verify-build.sh build/DerivedData/Build/Products/Release/AO3Downloader.app
-          Scripts/package-app.sh build/DerivedData/Build/Products/Release/AO3Downloader.app build/artifacts
+          app="build/DerivedData/Build/Products/Release/AO3Downloader.app"
+          /usr/bin/codesign --force --sign - \
+            --entitlements AO3Downloader/Resources/AO3Downloader.entitlements "$app"
+          Scripts/verify-build.sh "$app"
+          Scripts/package-app.sh "$app" build/artifacts
       - name: Publish unsigned release
         uses: softprops/action-gh-release@v2
         with:

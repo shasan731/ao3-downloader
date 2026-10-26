@@ -17,7 +17,7 @@
 - Merged EPUB 3 and merged PDF output.
 - Complete pause/resume/cancel/history UI and persisted security-scoped bookmarks.
 - Full Retry-After parsing, escalation persistence, retries/offline monitoring, notifications.
-- Signing/notarization. All artifacts are unsigned.
+- Developer ID signing and notarization. CI artifacts use an ad-hoc integrity signature only.
 
 ## Verification state
 

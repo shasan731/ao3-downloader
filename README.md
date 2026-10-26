@@ -12,7 +12,7 @@ No Xcode or compiler is required locally. GitHub Actions is the build and test a
 2. Open GitHub → Actions → **Build, Test and Package** and select the pushed run.
 3. Wait for the green build. Under **Artifacts**, download `AO3Downloader-<commit>`.
 4. Verify `SHA256SUMS.txt`, then open the ZIP or DMG and move the app to Applications.
-5. This build is unsigned. If macOS blocks it, Control-click the app and choose **Open**, then confirm. Do not disable Gatekeeper globally.
+5. This build has an ad-hoc integrity signature but is not Developer ID signed or notarized. After the first blocked launch, open **System Settings → Privacy & Security**, scroll to Security, and use **Open Anyway** only if you trust this repository and verified the checksum. Do not disable Gatekeeper globally.
 
 If CI fails, download `test-diagnostics-<commit>` and inspect the failing step and `.xcresult`. The project intentionally prohibits live AO3 requests in automated tests.
 
