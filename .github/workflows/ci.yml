@@ -45,6 +45,11 @@ jobs:
             grep -E '(^|: )(error:|fatal error:|Testing failed:)' build/test.log | tail -100 | while IFS= read -r line; do
               echo "::error::$line"
             done
+            tail -40 build/test.log | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\r'/'%0D'}
+              echo "::notice::$line"
+            done
           fi
       - name: Build release
         if: success()

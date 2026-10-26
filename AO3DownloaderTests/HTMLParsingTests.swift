@@ -3,7 +3,9 @@ import XCTest
 
 final class HTMLParsingTests: XCTestCase {
     func testParsesMetadataAndRealDownloadMenu() throws {
-        let url = Bundle(for: Self.self).url(forResource: "work", withExtension: "html", subdirectory: "Fixtures")!
+        let bundle = Bundle(for: Self.self)
+        let url = try XCTUnwrap(bundle.url(forResource: "work", withExtension: "html", subdirectory: "Fixtures")
+                                ?? bundle.url(forResource: "work", withExtension: "html"))
         let html = try String(contentsOf: url, encoding: .utf8)
         let link = try AO3URLParser().parse("https://archiveofourown.org/works/123")
         let work = try AO3HTMLParser().parseWork(html, link: link)
