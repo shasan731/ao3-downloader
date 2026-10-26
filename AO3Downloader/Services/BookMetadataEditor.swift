@@ -38,14 +38,17 @@ struct BookMetadataEditor: Sendable {
     private func editEPUB(_ metadata: EditableBookMetadata, source: URL, output: URL) throws {
         try DownloadValidator().validate(file: source, format: .epub)
         let fileManager = FileManager.default
-        let staging = fileManager.temporaryDirectory.appendingPathComponent("AO3Metadata-\(UUID().uuidString)", isDirectory: true)
-        let root = staging.appendingPathComponent("Package", isDirectory: true)
+        let stagingPath = (fileManager.temporaryDirectory.path as NSString)
+            .appendingPathComponent("AO3Metadata-\(UUID().uuidString)")
+        let staging = URL(fileURLWithPath: stagingPath, isDirectory: true)
+        let root = URL(fileURLWithPath: (stagingPath as NSString).appendingPathComponent("Package"), isDirectory: true)
         defer { try? fileManager.removeItem(at: staging) }
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        try extractEPUB(source, to: root)
+        do { try extractEPUB(source, to: root) }
+        catch { throw AO3Error.mergeFailed("the EPUB could not be extracted safely: \(error.localizedDescription)") }
 
         let delegate = MetadataContainerDelegate()
-        let directContainer = root.appendingPathComponent("META-INF/container.xml")
+        let directContainer = URL(fileURLWithPath: (root.path as NSString).appendingPathComponent("META-INF/container.xml"))
         var containerURL: URL? = fileManager.fileExists(atPath: directContainer.path) ? directContainer : nil
         if containerURL == nil {
             let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
@@ -154,7 +157,7 @@ struct BookMetadataEditor: Sendable {
             guard safeRelativePath(entry.path), entry.type == .file || entry.type == .directory else {
                 throw AO3Error.mergeFailed("the EPUB contains an unsafe archive entry")
             }
-            let destination = root.appendingPathComponent(entry.path).standardizedFileURL
+            let destination = URL(fileURLWithPath: (root.path as NSString).appendingPathComponent(entry.path)).standardizedFileURL
             guard destination.path == root.standardizedFileURL.path
                     || destination.path.hasPrefix(root.standardizedFileURL.path + "/") else {
                 throw AO3Error.mergeFailed("the EPUB contains an escaping archive entry")
