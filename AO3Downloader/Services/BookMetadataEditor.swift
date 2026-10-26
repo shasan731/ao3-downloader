@@ -42,7 +42,7 @@ struct BookMetadataEditor: Sendable {
         let root = staging.appendingPathComponent("Package", isDirectory: true)
         defer { try? fileManager.removeItem(at: staging) }
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        try fileManager.unzipItem(at: source, to: root)
+        try extractEPUB(source, to: root)
 
         let delegate = MetadataContainerDelegate()
         let directContainer = root.appendingPathComponent("META-INF/container.xml")
@@ -137,6 +137,35 @@ struct BookMetadataEditor: Sendable {
             paths.append(String(url.path.dropFirst(root.path.count + 1)))
         }
         for path in paths.sorted() { try archive.addEntry(with: path, relativeTo: root, compressionMethod: .deflate) }
+    }
+
+    private func extractEPUB(_ source: URL, to root: URL) throws {
+        guard let archive = Archive(url: source, accessMode: .read) else {
+            throw AO3Error.mergeFailed("the EPUB archive cannot be opened")
+        }
+        var entryCount = 0
+        var expandedSize: UInt64 = 0
+        for entry in archive {
+            entryCount += 1
+            expandedSize += UInt64(entry.uncompressedSize)
+            guard entryCount <= 50_000, expandedSize <= 2_000_000_000 else {
+                throw AO3Error.mergeFailed("the EPUB archive is too large to edit safely")
+            }
+            guard safeRelativePath(entry.path), entry.type == .file || entry.type == .directory else {
+                throw AO3Error.mergeFailed("the EPUB contains an unsafe archive entry")
+            }
+            let destination = root.appendingPathComponent(entry.path).standardizedFileURL
+            guard destination.path == root.standardizedFileURL.path
+                    || destination.path.hasPrefix(root.standardizedFileURL.path + "/") else {
+                throw AO3Error.mergeFailed("the EPUB contains an escaping archive entry")
+            }
+            if entry.type == .directory {
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+            } else {
+                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                _ = try archive.extract(entry, to: destination)
+            }
+        }
     }
 
     private func replacingFirst(in source: String, pattern: String, with replacement: String, insertion: String) -> String {
