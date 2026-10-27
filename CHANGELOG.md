@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-10-27)
+
+- Prepared the first public ArchiveBind release after the verified branding, responsive-interface, Library, packaging, and repository overhaul.
+
 ## 0.1.0 (2026-10-27)
 
 - Added the native macOS SwiftUI foundation and public single-work download flow.
