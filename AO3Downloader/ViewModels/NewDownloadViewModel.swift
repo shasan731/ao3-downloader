@@ -27,6 +27,7 @@ final class NewDownloadViewModel: ObservableObject {
     private var operationTask: Task<Void, Never>?
     private var currentLibraryRecordID: UUID?
     private var pendingReanalysisRecord: LibraryRecord?
+    private var isViewingLibraryRecord = false
     @Published private(set) var metadataTargetPartID: String?
 
     init(dependencies: AppDependencies = .live) {
@@ -42,6 +43,33 @@ final class NewDownloadViewModel: ObservableObject {
     }
 
     var hasLoadedLibraryRecord: Bool { currentLibraryRecordID != nil }
+    var isViewingLibraryWorkspace: Bool { isViewingLibraryRecord }
+
+    /// Clears Library-specific context before presenting the New Download workspace.
+    /// Active work is deliberately left alone so sidebar navigation never interrupts it.
+    func prepareNewDownloadWorkspace() {
+        guard !isBusy, isViewingLibraryRecord else { return }
+        input = ""
+        work = nil
+        series = nil
+        format = .epub
+        seriesOutputMode = .separate
+        destination = nil
+        status = "Paste a public AO3 work or series URL to begin."
+        outputURL = nil
+        activeOperation = nil
+        seriesItemStates = [:]
+        downloadedParts = []
+        currentFailures = []
+        metadataTitle = ""
+        metadataAuthors = ""
+        metadataLanguage = "en"
+        metadataCoverURL = nil
+        metadataTargetPartID = nil
+        currentLibraryRecordID = nil
+        pendingReanalysisRecord = nil
+        isViewingLibraryRecord = false
+    }
 
     var hasDownloadableSelection: Bool {
         guard let series else { return work != nil }
@@ -102,6 +130,7 @@ final class NewDownloadViewModel: ObservableObject {
         pendingReanalysisRecord = nil
         work = nil; series = nil; seriesItemStates = [:]
         if let reanalysis {
+            isViewingLibraryRecord = true
             currentLibraryRecordID = reanalysis.id
             downloadedParts = reanalysis.downloadedParts.filter { FileManager.default.fileExists(atPath: $0.fileURL.path) }
             currentFailures = reanalysis.failures
@@ -113,6 +142,7 @@ final class NewDownloadViewModel: ObservableObject {
             }
             outputURL = reanalysis.destinationURL
         } else {
+            isViewingLibraryRecord = false
             outputURL = nil; downloadedParts = []; currentFailures = []; currentLibraryRecordID = nil
         }
         activeOperation = .init(kind: .analysis, stage: .validating, startedAt: .now,
@@ -601,6 +631,8 @@ final class NewDownloadViewModel: ObservableObject {
     }
 
     func openHistoryRecord(_ record: LibraryRecord) {
+        guard !isBusy else { return }
+        isViewingLibraryRecord = true
         currentLibraryRecordID = record.id
         input = record.sourceURL.absoluteString; series = record.series; work = record.singleWork
         format = record.format; seriesOutputMode = record.outputMode ?? .separate
@@ -652,6 +684,7 @@ final class NewDownloadViewModel: ObservableObject {
         guard !isBusy else { return }
         historyRecords.removeAll { $0.id == id }
         if currentLibraryRecordID == id {
+            isViewingLibraryRecord = false
             currentLibraryRecordID = nil
             work = nil; series = nil; outputURL = nil; downloadedParts = []; currentFailures = []
             seriesItemStates = [:]; metadataTargetPartID = nil
@@ -667,6 +700,7 @@ final class NewDownloadViewModel: ObservableObject {
                                    metadata: editableMetadata, downloadedParts: [], singleFileURL: fileURL,
                                    combinedFiles: [], failures: [], createdAt: .now, updatedAt: .now)
         historyRecords.insert(record, at: 0); currentLibraryRecordID = record.id
+        isViewingLibraryRecord = false
         await persistHistory()
     }
 
@@ -691,6 +725,7 @@ final class NewDownloadViewModel: ObservableObject {
                                    singleFileURL: nil, combinedFiles: result.combinedFile.map { [$0] } ?? [],
                                    failures: result.failures, createdAt: .now, updatedAt: .now)
         historyRecords.insert(record, at: 0); currentLibraryRecordID = record.id
+        isViewingLibraryRecord = false
         await persistHistory()
     }
 

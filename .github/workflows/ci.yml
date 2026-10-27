@@ -66,7 +66,7 @@ jobs:
       - name: Upload products
         uses: actions/upload-artifact@v4
         with:
-          name: AO3Downloader-${{ github.sha }}
+          name: ArchiveBind-${{ github.sha }}
           path: build/artifacts/*
           retention-days: 14
       - name: Upload test diagnostics on failure

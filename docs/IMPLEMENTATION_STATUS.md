@@ -2,7 +2,7 @@
 
 ## Implemented and CI-verified
 
-- Native macOS 14 SwiftUI navigation shell, work input/preview, folder chooser, format picker, open/reveal actions, Settings and About.
+- Native macOS 14 SwiftUI navigation shell with ArchiveBind branding and original icon, responsive work input/preview, folder chooser, format picker, open/reveal actions, narrow-window Settings, and About.
 - Exact HTTPS host/path validation and chapter-to-work normalization.
 - Explicit public Mature/Explicit consent handling with adult-warning detection and strict same-work canonical/first-chapter redirect validation; multi-chapter parts still use AO3's complete-work downloads.
 - Public work metadata parsing with SwiftSoup and discovered official EPUB/PDF/HTML links.
@@ -14,11 +14,12 @@
 - Single and combined PDF polishing with non-rasterized source pages, designed title and paginated Contents pages, clickable internal links, imported hierarchical chapter bookmarks, and duplicate-safe managed front matter.
 - Window-owned operations continue across sidebar navigation, with analysis-page progress, per-work processed counts/status icons, combined-book assembly/verification phases, elapsed time, and explicit cancellation that retains verified output.
 - Versioned atomic JSON persistence service and deterministic URL/parser/file/persistence tests.
-- Recoverable durable Library projects with immediate visible per-part/failure checkpoints, schema validation, a last-known-good database copy, security-scoped destination bookmarks, retained hidden sources for combined-only jobs, missing-local-file detection, and safe record-only removal.
+- Searchable, streamlined durable Library projects with summary cards, immediate visible per-part/failure checkpoints, schema validation, a last-known-good database copy, security-scoped destination bookmarks, retained hidden sources for combined-only jobs, missing-local-file detection, and safe record-only removal.
 - Individual and ordered bulk retry from New Download, Queue, and Library with visible failure reasons, dynamic deselection during an active download, manual verified-subset recombination after failures, and reanalysis that preserves known selections/downloads while identifying new work IDs.
 - Editable title, authors, language, and managed JPEG/PNG cover metadata for single works, retained parts, new combined books, and existing combined EPUB/PDF files.
 - Synthetic tests for Library round trips, live deselection, retained-source reuse, EPUB package metadata/cover/front-matter navigation, and PDF metadata/cover/clickable Contents/outline regeneration.
-- arm64 GitHub Actions test/build/ZIP/DMG/checksum pipeline and tag prerelease workflow.
+- Busy-safe New Download workspace reset after browsing Library, without interrupting active operations or deleting history.
+- arm64 GitHub Actions test/build/ArchiveBind ZIP/DMG/checksum pipeline and stable tag-release workflow.
 
 ## Not yet supported
 

@@ -25,10 +25,16 @@ jobs:
             --entitlements AO3Downloader/Resources/AO3Downloader.entitlements "$app"
           Scripts/verify-build.sh "$app"
           Scripts/package-app.sh "$app" build/artifacts
-      - name: Publish unsigned release
+      - name: Publish ArchiveBind release
         uses: softprops/action-gh-release@v2
         with:
-          prerelease: true
-          body: "Unsigned personal build. macOS may require Control-click → Open on first launch. Never disable Gatekeeper globally."
+          name: ArchiveBind ${{ github.ref_name }}
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Install
+            Download the DMG, verify it against `SHA256SUMS.txt`, and drag ArchiveBind to Applications.
+
+            This community build has an ad-hoc integrity signature but is not Developer ID signed or notarized. macOS may require **System Settings → Privacy & Security → Open Anyway** after the first launch attempt. Never disable Gatekeeper globally.
           files: build/artifacts/*
 

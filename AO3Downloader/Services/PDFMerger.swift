@@ -50,7 +50,8 @@ struct PDFMerger: Sendable {
                 throw AO3Error.mergeFailed("part \(input.entry.position), \(input.work.title), is malformed or password-protected")
             }
             let descriptors = outlineDescriptors(from: source.outlineRoot, in: source)
-            let appCreated = source.documentAttributes?[PDFDocumentAttribute.creatorAttribute] as? String == "AO3 Downloader"
+            let creator = source.documentAttributes?[PDFDocumentAttribute.creatorAttribute] as? String
+            let appCreated = creator == "ArchiveBind" || creator == "AO3 Downloader"
             let editingManagedBook = metadata != nil && inputs.count == 1
                 && ((appCreated && containsCurrentFrontMatter(source)) || containsLegacyCover(source))
             importedManagedBook = importedManagedBook || editingManagedBook
@@ -114,7 +115,7 @@ struct PDFMerger: Sendable {
         output.documentAttributes = [
             PDFDocumentAttribute.titleAttribute: title,
             PDFDocumentAttribute.authorAttribute: (authors.isEmpty ? ["Unknown Creator"] : authors).joined(separator: ", "),
-            PDFDocumentAttribute.creatorAttribute: "AO3 Downloader"
+            PDFDocumentAttribute.creatorAttribute: "ArchiveBind"
         ]
 
         let expectedPages = output.pageCount
@@ -207,7 +208,7 @@ struct PDFMerger: Sendable {
             let byline = authors.isEmpty ? "Unknown Creator" : "by " + authors.joined(separator: ", ")
             draw(byline, in: NSRect(x: 72, y: rect.height / 2 - 105, width: rect.width - 144, height: 55),
                  font: .systemFont(ofSize: 17), color: .labelColor, alignment: .center)
-            draw("Combined with AO3 Downloader", in: NSRect(x: 72, y: 55, width: rect.width - 144, height: 24),
+            draw("Bound with ArchiveBind", in: NSRect(x: 72, y: 55, width: rect.width - 144, height: 24),
                  font: .systemFont(ofSize: 9), color: .secondaryLabelColor, alignment: .center)
         }
         mark(page, as: "title")

@@ -38,7 +38,7 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     private let scheduler: AO3RequestScheduler
     private let parser: AO3HTMLParser
     private let allowsAdultContent: @Sendable () -> Bool
-    private let userAgent = "AO3Downloader/0.1 (unofficial personal-use app; https://github.com/shasan731/ao3-downloader)"
+    private let userAgent = "ArchiveBind/0.1 (unofficial personal-use app; https://github.com/shasan731/ao3-downloader)"
 
     init(transport: HTTPTransport = URLSessionTransport(), scheduler: AO3RequestScheduler,
          parser: AO3HTMLParser = .init(),
