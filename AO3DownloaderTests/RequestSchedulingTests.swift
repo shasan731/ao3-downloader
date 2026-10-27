@@ -11,6 +11,13 @@ private actor ActivityCounter {
 
 private struct ImmediateSleeper: Sleeping { func sleep(for duration: Duration) async throws {} }
 
+private final class CooldownRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date?
+    func record(_ date: Date) { lock.lock(); value = date; lock.unlock() }
+    func latest() -> Date? { lock.lock(); defer { lock.unlock() }; return value }
+}
+
 private actor StartSignal {
     private var started = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -65,5 +72,20 @@ final class RequestSchedulingTests: XCTestCase {
         XCTAssertEqual(maximum, 1)
         let entries = await counter.entries
         XCTAssertEqual(entries, 1)
+    }
+
+    func testPublishesCourtesyAndServerCooldownChangesForPersistence() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let recorder = CooldownRecorder()
+        let scheduler = AO3RequestScheduler(minimumInterval: 10, sleeper: ImmediateSleeper(),
+                                            now: { now }, jitter: { 0 }, cooldownChanged: recorder.record)
+        _ = try await scheduler.perform { 1 }
+        XCTAssertEqual(recorder.latest(), now.addingTimeInterval(10))
+
+        let serverCooldown = now.addingTimeInterval(600)
+        await scheduler.applyCooldown(until: serverCooldown)
+        XCTAssertEqual(recorder.latest(), serverCooldown)
+        let appliedCooldown = await scheduler.cooldownDate()
+        XCTAssertEqual(appliedCooldown, serverCooldown)
     }
 }

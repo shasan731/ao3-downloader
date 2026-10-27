@@ -54,11 +54,14 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     func analyze(_ link: AO3Link) async throws -> Work {
         guard link.kind == .work else { throw AO3Error.unsupportedPath }
         let requestURL = workRequestURL(for: link)
-        let (data, response) = try await scheduler.perform { [transport, userAgent] in
-            var request = URLRequest(url: requestURL); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-            return try await transport.data(for: request)
-        }
-        try classify(response, body: data)
+        let (data, response): (Data, HTTPURLResponse)
+        do {
+            (data, response) = try await scheduler.perform { [transport, userAgent] in
+                var request = URLRequest(url: requestURL); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                return try await transport.data(for: request)
+            }
+        } catch { throw mappedTransportError(error) }
+        try await classify(response, body: data)
         guard let responseURL = response.url, isAllowedWorkPage(responseURL, workID: link.id) else {
             throw AO3Error.unsafeRedirect
         }
@@ -86,12 +89,15 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
             guard isAllowedSeriesPage(current, seriesID: link.id), visitedPages.insert(current).inserted else {
                 throw AO3Error.siteLayoutChanged("repeated or unsafe series page")
             }
-            let (data, response) = try await scheduler.perform { [transport, userAgent] in
-                var request = URLRequest(url: current)
-                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-                return try await transport.data(for: request)
-            }
-            try classify(response, body: data)
+            let (data, response): (Data, HTTPURLResponse)
+            do {
+                (data, response) = try await scheduler.perform { [transport, userAgent] in
+                    var request = URLRequest(url: current)
+                    request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                    return try await transport.data(for: request)
+                }
+            } catch { throw mappedTransportError(error) }
+            try await classify(response, body: data)
             guard data.count <= 8_000_000, let html = String(data: data, encoding: .utf8) else {
                 throw AO3Error.siteLayoutChanged("invalid or oversized series HTML")
             }
@@ -119,27 +125,72 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     func download(_ work: Work, format: DownloadFormat) async throws -> URL {
         guard let url = work.downloadableFormats[format] else { throw AO3Error.formatUnavailable(format) }
         guard isApproved(url) else { throw AO3Error.unsafeRedirect }
-        let (temporaryURL, response) = try await scheduler.perform { [transport, userAgent] in
-            var request = URLRequest(url: url); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-            return try await transport.download(for: request)
-        }
-        try classify(response, body: nil)
+        let (temporaryURL, response): (URL, HTTPURLResponse)
+        do {
+            (temporaryURL, response) = try await scheduler.perform { [transport, userAgent] in
+                var request = URLRequest(url: url); request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                return try await transport.download(for: request)
+            }
+        } catch { throw mappedTransportError(error) }
+        try await classify(response, body: nil)
         try DownloadValidator().validate(file: temporaryURL, format: format)
         return temporaryURL
     }
 
-    private func classify(_ response: HTTPURLResponse, body: Data?) throws {
+    private func classify(_ response: HTTPURLResponse, body: Data?) async throws {
         guard let responseURL = response.url, isApproved(responseURL) else { throw AO3Error.unsafeRedirect }
+        let now = Date()
+        let requestedRetry = retryAfterDate(response.value(forHTTPHeaderField: "Retry-After"), now: now)
         switch response.statusCode {
         case 200..<300: break
         case 401, 403: throw AO3Error.accessRequired
         case 404, 410: throw AO3Error.unavailable
-        case 429: throw AO3Error.throttled(nil)
+        case 429:
+            let until = requestedRetry ?? now.addingTimeInterval(15 * 60)
+            await scheduler.applyCooldown(until: until)
+            throw AO3Error.throttled(until)
+        case 503 where requestedRetry != nil:
+            await scheduler.applyCooldown(until: requestedRetry!)
+            throw AO3Error.throttled(requestedRetry)
         case 502, 503, 504: throw AO3Error.temporaryFailure(response.statusCode)
         default: throw AO3Error.temporaryFailure(response.statusCode)
         }
         if let body, let text = String(data: body.prefix(200_000), encoding: .utf8)?.lowercased(),
-           text.contains("retry later") { throw AO3Error.throttled(nil) }
+           text.contains("retry later") {
+            let until = now.addingTimeInterval(15 * 60)
+            await scheduler.applyCooldown(until: until)
+            throw AO3Error.throttled(until)
+        }
+    }
+
+    private func retryAfterDate(_ value: String?, now: Date) -> Date? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        let maximum = now.addingTimeInterval(24 * 60 * 60)
+        if let seconds = TimeInterval(value), seconds >= 0 {
+            return min(maximum, now.addingTimeInterval(seconds))
+        }
+        let formats = ["EEE',' dd MMM yyyy HH':'mm':'ss z", "EEEE',' dd-MMM-yy HH':'mm':'ss z", "EEE MMM d HH':'mm':'ss yyyy"]
+        for format in formats {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) { return min(maximum, max(now, date)) }
+        }
+        return nil
+    }
+
+    private func mappedTransportError(_ error: Error) -> Error {
+        if error is CancellationError || Task.isCancelled { return CancellationError() }
+        guard let error = error as? URLError else { return error }
+        switch error.code {
+        case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
+             .dnsLookupFailed, .internationalRoamingOff, .dataNotAllowed:
+            return AO3Error.networkUnavailable
+        case .timedOut: return AO3Error.networkTimedOut
+        case .cancelled: return CancellationError()
+        default: return AO3Error.temporaryFailure(error.errorCode)
+        }
     }
 
     private func isApproved(_ url: URL) -> Bool {

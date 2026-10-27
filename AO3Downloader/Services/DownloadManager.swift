@@ -293,6 +293,8 @@ actor DownloadManager {
         case .unavailable: return "unavailable"
         case .formatUnavailable: return "format-unavailable"
         case .throttled: return "throttled"
+        case .networkUnavailable: return "offline"
+        case .networkTimedOut: return "timeout"
         case .challenged: return "challenge"
         case .storage: return "storage"
         case .invalidDownload: return "verification"

@@ -8,9 +8,13 @@ For a public work that shows AO3's Mature/Explicit warning, enable **Allow publi
 
 Analysis and downloads continue when you switch between New Download, Queue, Settings, or other sidebar sections. Queue shows the active phase, elapsed time, processed/total count, current part, and a status icon beside every series part. You may change part selections while downloading: parts not yet started are skipped, and assembly uses the final selection. A green check means its complete official file was downloaded and verified. Because AO3 supplies a whole multi-chapter work as one file, chapter-level network progress is not fabricated; after verification the app displays that work's known chapter count. **Cancel** stops queued or active work and retains/checkpoints already verified files.
 
+If AO3 sends a `Retry-After` instruction, the app pauses its global request queue until that time and preserves the cooldown across relaunches. A connection outage or timeout is shown distinctly from an AO3 access/layout error. Nothing already verified is discarded; reconnect and use Retry when appropriate.
+
 ## Library, retries, and updates
 
-Every started series becomes a durable Library project. Select it in **Library / History** to see verified, failed, missing-local, and inaccessible parts. Use **Retry** beside a failed part in New Download, Queue, or Library. Once every currently selected part has a green check, **Combine Selected** creates a new EPUB or PDF even if some unselected part failed. Source files are retained for combined-only projects, so recombination does not redownload them.
+Every started series becomes a durable Library project. Select it in **Library / History** to see verified, failed, missing-local, and inaccessible parts, including the reason beneath each failed title. Use **Retry** beside one failed part or **Retry Failed Selected Parts** to process the selected failures in order through the courteous request queue. Once every currently selected part has a green check, **Combine Selected** creates a new EPUB or PDF even if some unselected part failed. Source files are retained for combined-only projects, so recombination does not redownload them.
+
+Library writes keep a last-known-good recovery copy. If the primary database is damaged, the app loads that copy instead of silently presenting an empty Library. Persistence problems are shown without deleting downloaded books. **Remove from Library** removes only the record after confirmation; it deliberately keeps all downloaded files and folders.
 
 Change the checkboxes to build an anthology from any verified subset. Edit the title, comma-separated authors, language, and optional JPEG/PNG cover before combining. **Apply Metadata** updates an existing combined book atomically; **Edit Metadata** updates an individual downloaded part; single-work history has **Apply to File**. The original is left intact if validation of an edited replacement fails.
 

@@ -62,6 +62,16 @@ final class NewDownloadViewModel: ObservableObject {
         }.count
     }
 
+    var retryableFailureCount: Int {
+        guard let series else { return 0 }
+        let selected = Set(series.orderedWorks.filter { $0.selected && $0.accessState == .publicAccess }.map(\.workID))
+        return currentFailures.filter { selected.contains($0.workID) }.count
+    }
+
+    func failureMessage(for workID: String) -> String? {
+        currentFailures.first(where: { $0.workID == workID })?.message
+    }
+
     func paste() {
         input = NSPasteboard.general.string(forType: .string) ?? input
     }
@@ -374,9 +384,67 @@ final class NewDownloadViewModel: ObservableObject {
                 self.currentFailures.append(.init(workID: entry.workID, position: entry.position,
                                                   title: entry.title, sourceURL: entry.sourceURL,
                                                   category: "retry-failed", message: error.localizedDescription))
+                self.currentFailures.sort { $0.position < $1.position }
                 self.status = "Retry failed: \(error.localizedDescription)"
                 await self.updateCurrentHistory()
             }
+        }
+    }
+
+    func retryFailedParts() {
+        guard operationTask == nil, let series, let directory = outputURL else { return }
+        let failedIDs = Set(currentFailures.map(\.workID))
+        let entries = series.orderedWorks
+            .filter { $0.selected && $0.accessState == .publicAccess && failedIDs.contains($0.workID) }
+            .sorted { $0.position < $1.position }
+        guard !entries.isEmpty else { return }
+        isBusy = true
+        activeOperation = .init(kind: .download, stage: .downloading, startedAt: .now,
+                                completedCount: 0, totalCount: entries.count, currentTitle: entries.first?.title,
+                                detail: "Retrying \(entries.count) failed selected parts")
+        operationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.isBusy = false; self.operationTask = nil }
+            var succeeded = 0
+            for (index, entry) in entries.enumerated() {
+                do {
+                    try Task.checkCancellation()
+                    self.activeOperation?.currentTitle = entry.title
+                    self.activeOperation?.detail = "Retrying Part \(entry.position) • \(index + 1) of \(entries.count)"
+                    self.seriesItemStates[entry.workID] = .downloading
+                    let part = try await self.dependencies.manager.retry(entry: entry, format: self.format, in: directory)
+                    self.downloadedParts.removeAll { $0.work.id == entry.workID }
+                    self.downloadedParts.append(part)
+                    self.downloadedParts.sort { $0.entry.position < $1.entry.position }
+                    self.currentFailures.removeAll { $0.workID == entry.workID }
+                    self.seriesItemStates[entry.workID] = .completed
+                    succeeded += 1
+                } catch is CancellationError {
+                    self.seriesItemStates[entry.workID] = .failed
+                    self.activeOperation?.stage = .cancelled
+                    self.activeOperation?.detail = "Bulk retry cancelled; completed retries were retained"
+                    self.status = "Retry cancelled. Successfully retried parts were retained."
+                    await self.updateCurrentHistory()
+                    return
+                } catch {
+                    self.seriesItemStates[entry.workID] = .failed
+                    self.currentFailures.removeAll { $0.workID == entry.workID }
+                    self.currentFailures.append(.init(workID: entry.workID, position: entry.position,
+                                                      title: entry.title, sourceURL: entry.sourceURL,
+                                                      category: "retry-failed", message: error.localizedDescription))
+                    self.currentFailures.sort { $0.position < $1.position }
+                }
+                self.activeOperation?.completedCount = index + 1
+                await self.updateCurrentHistory()
+            }
+            let remaining = entries.count - succeeded
+            self.activeOperation?.stage = remaining == 0 ? .completed : .failed
+            self.activeOperation?.detail = remaining == 0
+                ? "All \(succeeded) retries succeeded and were verified"
+                : "\(succeeded) succeeded • \(remaining) still failed"
+            self.status = remaining == 0
+                ? "All failed selected parts downloaded successfully. You can combine them now."
+                : "Bulk retry finished: \(succeeded) succeeded and \(remaining) still need attention."
         }
     }
 
@@ -409,7 +477,7 @@ final class NewDownloadViewModel: ObservableObject {
                     self.historyRecords[index].combinedFiles.append(combined)
                     self.historyRecords[index].metadata = self.editableMetadata
                     self.historyRecords[index].updatedAt = .now
-                    try? await self.dependencies.libraryStore.save(self.historyRecords)
+                    await self.persistHistory()
                 }
             } catch is CancellationError {
                 self.activeOperation?.stage = .cancelled
@@ -509,7 +577,7 @@ final class NewDownloadViewModel: ObservableObject {
                 if let index = self.historyRecords.firstIndex(where: { $0.id == self.currentLibraryRecordID }) {
                     self.historyRecords[index].downloadedParts = self.downloadedParts
                     self.historyRecords[index].updatedAt = .now
-                    try? await self.dependencies.libraryStore.save(self.historyRecords)
+                    await self.persistHistory()
                 }
                 if self.metadataTargetPartID == nil { self.editCombinedMetadata() }
                 return
@@ -572,7 +640,24 @@ final class NewDownloadViewModel: ObservableObject {
     }
 
     private func loadHistory() async {
-        historyRecords = (try? await dependencies.libraryStore.load()) ?? []
+        do {
+            historyRecords = try await dependencies.libraryStore.load()
+        } catch {
+            historyRecords = []
+            status = "Library recovery failed: \(error.localizedDescription). Existing download files were not changed."
+        }
+    }
+
+    func removeHistoryRecord(_ id: UUID) {
+        guard !isBusy else { return }
+        historyRecords.removeAll { $0.id == id }
+        if currentLibraryRecordID == id {
+            currentLibraryRecordID = nil
+            work = nil; series = nil; outputURL = nil; downloadedParts = []; currentFailures = []
+            seriesItemStates = [:]; metadataTargetPartID = nil
+        }
+        status = "Removed from Library. Downloaded files were kept."
+        Task { [weak self] in await self?.persistHistory() }
     }
 
     private func saveSingleWork(work: Work, fileURL: URL, destination: URL) async {
@@ -582,7 +667,7 @@ final class NewDownloadViewModel: ObservableObject {
                                    metadata: editableMetadata, downloadedParts: [], singleFileURL: fileURL,
                                    combinedFiles: [], failures: [], createdAt: .now, updatedAt: .now)
         historyRecords.insert(record, at: 0); currentLibraryRecordID = record.id
-        try? await dependencies.libraryStore.save(historyRecords)
+        await persistHistory()
     }
 
     private func saveSeriesResult(_ result: SeriesDownloadResult, series: Series) async {
@@ -595,7 +680,7 @@ final class NewDownloadViewModel: ObservableObject {
             historyRecords[index].failures = result.failures
             if let combined = result.combinedFile { historyRecords[index].combinedFiles.append(combined) }
             historyRecords[index].updatedAt = .now
-            try? await dependencies.libraryStore.save(historyRecords)
+            await persistHistory()
             return
         }
         let record = LibraryRecord(id: UUID(), kind: .series, sourceURL: series.sourceURL, series: series,
@@ -606,7 +691,7 @@ final class NewDownloadViewModel: ObservableObject {
                                    singleFileURL: nil, combinedFiles: result.combinedFile.map { [$0] } ?? [],
                                    failures: result.failures, createdAt: .now, updatedAt: .now)
         historyRecords.insert(record, at: 0); currentLibraryRecordID = record.id
-        try? await dependencies.libraryStore.save(historyRecords)
+        await persistHistory()
     }
 
     private func saveSeriesCheckpoint(series: Series, directory: URL) async {
@@ -630,7 +715,7 @@ final class NewDownloadViewModel: ObservableObject {
             historyRecords.insert(record, at: 0)
             currentLibraryRecordID = record.id
         }
-        try? await dependencies.libraryStore.save(historyRecords)
+        await persistHistory()
     }
 
     private func metadataWasCustomized(from work: Work) -> Bool {
@@ -670,7 +755,18 @@ final class NewDownloadViewModel: ObservableObject {
         historyRecords[index].failures = currentFailures
         if metadataTargetPartID == nil { historyRecords[index].metadata = editableMetadata }
         historyRecords[index].updatedAt = .now
-        try? await dependencies.libraryStore.save(historyRecords)
+        await persistHistory()
+    }
+
+    @discardableResult
+    private func persistHistory() async -> Bool {
+        do {
+            try await dependencies.libraryStore.save(historyRecords)
+            return true
+        } catch {
+            status = "Library checkpoint could not be saved: \(error.localizedDescription). Downloaded files were kept."
+            return false
+        }
     }
 }
 

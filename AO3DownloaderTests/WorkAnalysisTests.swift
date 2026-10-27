@@ -5,17 +5,25 @@ import XCTest
 private actor WorkAnalysisTransport: HTTPTransport {
     let body: Data
     let responseURL: URL
+    let statusCode: Int
+    let headerFields: [String: String]
+    let transportError: URLError?
     private(set) var requests: [URL] = []
 
-    init(body: Data, responseURL: URL) {
+    init(body: Data, responseURL: URL, statusCode: Int = 200,
+         headerFields: [String: String] = ["Content-Type": "text/html"], transportError: URLError? = nil) {
         self.body = body
         self.responseURL = responseURL
+        self.statusCode = statusCode
+        self.headerFields = headerFields
+        self.transportError = transportError
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         requests.append(try XCTUnwrap(request.url))
-        let response = try XCTUnwrap(HTTPURLResponse(url: responseURL, statusCode: 200,
-                                                    httpVersion: nil, headerFields: ["Content-Type": "text/html"]))
+        if let transportError { throw transportError }
+        let response = try XCTUnwrap(HTTPURLResponse(url: responseURL, statusCode: statusCode,
+                                                    httpVersion: nil, headerFields: headerFields))
         return (body, response)
     }
 
@@ -81,6 +89,40 @@ final class WorkAnalysisTests: XCTestCase {
             XCTFail("Cross-work redirect unexpectedly passed validation")
         } catch {
             XCTAssertEqual(error as? AO3Error, .unsafeRedirect)
+        }
+    }
+
+    func testRetryAfterAppliesAndExposesPersistentCooldown() async throws {
+        let canonicalURL = try XCTUnwrap(URL(string: "https://archiveofourown.org/works/123"))
+        let transport = WorkAnalysisTransport(body: Data(), responseURL: canonicalURL, statusCode: 429,
+                                              headerFields: ["Retry-After": "600"])
+        let scheduler = AO3RequestScheduler(minimumInterval: 10)
+        let client = AO3Client(transport: transport, scheduler: scheduler, allowsAdultContent: { false })
+        let before = Date()
+
+        do {
+            _ = try await client.analyze(try AO3URLParser().parse(canonicalURL.absoluteString))
+            XCTFail("Throttled response unexpectedly succeeded")
+        } catch let error as AO3Error {
+            guard case .throttled(let date) = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertGreaterThan(try XCTUnwrap(date), before.addingTimeInterval(590))
+        }
+        let cooldown = await scheduler.cooldownDate()
+        XCTAssertGreaterThan(cooldown, before.addingTimeInterval(590))
+    }
+
+    func testOfflineTransportErrorGetsActionableClassification() async throws {
+        let canonicalURL = try XCTUnwrap(URL(string: "https://archiveofourown.org/works/123"))
+        let transport = WorkAnalysisTransport(body: Data(), responseURL: canonicalURL,
+                                              transportError: URLError(.notConnectedToInternet))
+        let scheduler = AO3RequestScheduler(minimumInterval: 10)
+        let client = AO3Client(transport: transport, scheduler: scheduler, allowsAdultContent: { false })
+
+        do {
+            _ = try await client.analyze(try AO3URLParser().parse(canonicalURL.absoluteString))
+            XCTFail("Offline request unexpectedly succeeded")
+        } catch {
+            XCTAssertEqual(error as? AO3Error, .networkUnavailable)
         }
     }
 }

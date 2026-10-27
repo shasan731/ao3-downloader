@@ -18,6 +18,7 @@ struct NewDownloadView: View {
             if let series = model.series {
                 SeriesPreviewView(series: series,
                                   progressStates: model.seriesItemStates,
+                                  failureMessages: Dictionary(uniqueKeysWithValues: model.currentFailures.map { ($0.workID, $0.message) }),
                                   isBusy: model.isBusy,
                                   onSelectionChanged: { model.setSelection($1, for: $0) },
                                   onSelectAll: { model.selectAllSeriesWorks($0) },
@@ -43,6 +44,10 @@ struct NewDownloadView: View {
                 if model.series != nil && !model.downloadedParts.isEmpty {
                     Button("Combine Selected Verified Parts") { model.combineSelected() }
                         .disabled(model.isBusy || !model.canCombineSelection)
+                }
+                if model.retryableFailureCount > 0 {
+                    Button("Retry Failed Selected Parts (\(model.retryableFailureCount))") { model.retryFailedParts() }
+                        .disabled(model.isBusy)
                 }
             }
         }.formStyle(.grouped).navigationTitle("New Download")

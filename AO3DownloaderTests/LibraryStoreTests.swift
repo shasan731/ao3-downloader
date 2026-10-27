@@ -5,7 +5,8 @@ import XCTest
 final class LibraryStoreTests: XCTestCase {
     func testPersistsRecombinableSeriesState() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let store = LibraryStore(fileURL: root.appendingPathComponent("library.json"))
+        let libraryURL = root.appendingPathComponent("library.json")
+        let store = LibraryStore(fileURL: libraryURL)
         let seriesURL = URL(string: "https://archiveofourown.org/series/99")!
         let workURL = URL(string: "https://archiveofourown.org/works/101")!
         let entry = SeriesEntry(workID: "101", position: 1, title: "First", sourceURL: workURL,
@@ -27,5 +28,15 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(loaded.first?.id, record.id)
         XCTAssertEqual(loaded.first?.downloadedParts.first?.entry.position, 1)
         XCTAssertEqual(loaded.first?.metadata.title, "Custom")
+
+        var updated = record
+        updated.metadata.title = "Updated"
+        try await store.save([updated])
+        let updatedLoad = try await store.load()
+        XCTAssertEqual(updatedLoad.first?.metadata.title, "Updated")
+
+        try Data("{not valid json".utf8).write(to: libraryURL, options: .atomic)
+        let recovered = try await store.load()
+        XCTAssertEqual(recovered.first?.metadata.title, "Custom")
     }
 }

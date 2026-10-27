@@ -9,3 +9,4 @@
 - Added editable title/author/language/cover metadata for individual, single, and combined EPUB/PDF books, including atomic in-place EPUB package editing and managed PDF covers.
 - Added explicit public Mature/Explicit consent handling, specific warning errors, safe same-work first-chapter redirects, complete multi-chapter part analysis, and in-place retry controls in the series preview.
 - Added book-quality EPUB/PDF front matter: title pages, visible hierarchical Contents, clickable Book/Story → Chapter links, styled EPUB dividers, PDF page numbers/bookmarks, and duplicate-safe PDF metadata regeneration.
+- Added persisted `Retry-After` handling, actionable offline/timeout errors, recoverable Library storage with visible checkpoint failures, ordered bulk retry, per-part failure details, safe Library removal, and completed-operation duration UX.

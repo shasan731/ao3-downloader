@@ -16,7 +16,12 @@ struct DownloadQueueView: View {
                                     .labelsHidden().disabled(entry.accessState != .publicAccess)
                                 statusIcon(model.seriesItemStates[entry.workID] ?? (entry.accessState == .publicAccess ? .pending : .inaccessible))
                                 Text("Part \(entry.position)").foregroundStyle(.secondary).frame(width: 58, alignment: .trailing)
-                                Text(entry.title).lineLimit(2)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.title).lineLimit(2)
+                                    if let message = model.failureMessage(for: entry.workID) {
+                                        Text(message).font(.caption).foregroundStyle(.red).lineLimit(2)
+                                    }
+                                }
                                 Spacer()
                                 if model.seriesItemStates[entry.workID] == .failed && !model.isBusy {
                                     Button("Retry") { model.retryPart(entry.workID) }
@@ -42,6 +47,10 @@ struct DownloadQueueView: View {
                             if !model.canCombineSelection { Text("Retry or deselect unavailable selected parts first.").foregroundStyle(.secondary) }
                         }
                     }
+                    if model.retryableFailureCount > 0 {
+                        Button("Retry Failed Selected Parts (\(model.retryableFailureCount))") { model.retryFailedParts() }
+                            .disabled(model.isBusy)
+                    }
                     Spacer()
                 }.padding()
             } else {
@@ -64,6 +73,7 @@ struct DownloadQueueView: View {
 struct HistoryView: View {
     @ObservedObject var model: NewDownloadViewModel
     @State private var selection: UUID?
+    @State private var recordPendingRemoval: LibraryRecord?
     var body: some View {
         Group {
             if model.historyRecords.isEmpty {
@@ -85,15 +95,23 @@ struct HistoryView: View {
                                 OperationProgressView(operation: operation, canCancel: true, onCancel: model.cancelOperation)
                             }
                             MetadataEditorView(model: model, showApplyToSingle: record.kind == .work)
-                            HStack {
+                            VStack(alignment: .leading, spacing: 8) {
                                 if record.kind == .series {
-                                    Button("Reanalyze Source") { model.reanalyzeCurrentSource() }.disabled(model.isBusy)
-                                    Button("Download Missing Selected (\(model.selectedMissingCount))") { model.startDownload() }
-                                        .disabled(model.isBusy || model.selectedMissingCount == 0)
-                                    Button("Combine Selected") { model.combineSelected() }
-                                        .disabled(model.isBusy || !model.canCombineSelection)
+                                    HStack {
+                                        Button("Reanalyze Source") { model.reanalyzeCurrentSource() }.disabled(model.isBusy)
+                                        Button("Download Missing (\(model.selectedMissingCount))") { model.startDownload() }
+                                            .disabled(model.isBusy || model.selectedMissingCount == 0)
+                                        Button("Retry Failed (\(model.retryableFailureCount))") { model.retryFailedParts() }
+                                            .disabled(model.isBusy || model.retryableFailureCount == 0)
+                                        Button("Combine Selected") { model.combineSelected() }
+                                            .disabled(model.isBusy || !model.canCombineSelection)
+                                    }
                                 }
-                                Button("Reveal Folder") { NSWorkspace.shared.activateFileViewerSelecting([record.destinationURL]) }
+                                HStack {
+                                    Button("Reveal Folder") { NSWorkspace.shared.activateFileViewerSelecting([record.destinationURL]) }
+                                    Button("Remove from Library", role: .destructive) { recordPendingRemoval = record }
+                                        .disabled(model.isBusy)
+                                }
                             }
                             if !record.combinedFiles.isEmpty {
                                 GroupBox("Combined Books") {
@@ -118,7 +136,12 @@ struct HistoryView: View {
                                             .labelsHidden().disabled(entry.accessState != .publicAccess)
                                         historyStatusIcon(model.seriesItemStates[entry.workID] ?? .pending)
                                         Text("Part \(entry.position)").foregroundStyle(.secondary)
-                                        Text(entry.title)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(entry.title)
+                                            if let message = model.failureMessage(for: entry.workID) {
+                                                Text(message).font(.caption).foregroundStyle(.red).lineLimit(2)
+                                            }
+                                        }
                                         Spacer()
                                         if model.seriesItemStates[entry.workID] == .failed && !model.isBusy {
                                             Button("Retry") { model.retryPart(entry.workID) }
@@ -136,6 +159,27 @@ struct HistoryView: View {
         }.navigationTitle("Library / History")
         .onChange(of: selection) { _, id in
             if let record = model.historyRecords.first(where: { $0.id == id }) { model.openHistoryRecord(record) }
+        }
+        .onChange(of: model.historyRecords.map(\.id), initial: true) { _, ids in
+            if selection.map({ ids.contains($0) }) != true {
+                selection = ids.first
+                if let id = ids.first, let record = model.historyRecords.first(where: { $0.id == id }) {
+                    model.openHistoryRecord(record)
+                }
+            }
+        }
+        .alert("Remove from Library?", isPresented: Binding(get: { recordPendingRemoval != nil },
+                                                              set: { if !$0 { recordPendingRemoval = nil } })) {
+            Button("Cancel", role: .cancel) { recordPendingRemoval = nil }
+            Button("Remove", role: .destructive) {
+                if let record = recordPendingRemoval {
+                    model.removeHistoryRecord(record.id)
+                    selection = nil
+                }
+                recordPendingRemoval = nil
+            }
+        } message: {
+            Text("This removes only the Library entry. Downloaded books and folders remain on disk.")
         }
     }
     private var selectedRecord: LibraryRecord? { model.historyRecords.first(where: { $0.id == selection }) }

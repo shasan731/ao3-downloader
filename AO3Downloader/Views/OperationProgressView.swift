@@ -22,8 +22,13 @@ struct OperationProgressView: View {
             } else if canCancel {
                 ProgressView()
             }
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text("Elapsed: \(elapsed(from: operation.startedAt, to: context.date))")
+            if canCancel {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text("Elapsed: \(elapsed(from: operation.startedAt, to: context.date))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Duration: \(elapsed(from: operation.startedAt, to: .now))")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

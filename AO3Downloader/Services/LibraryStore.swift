@@ -4,6 +4,7 @@ import Foundation
 actor LibraryStore {
     private struct Envelope: Codable { let version: Int; var records: [LibraryRecord] }
     private let fileURL: URL
+    private var backupURL: URL { fileURL.deletingPathExtension().appendingPathExtension("backup.json") }
 
     init(fileURL: URL? = nil) {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -13,8 +14,15 @@ actor LibraryStore {
 
     func load() throws -> [LibraryRecord] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        return try JSONDecoder().decode(Envelope.self, from: Data(contentsOf: fileURL)).records
-            .sorted { $0.updatedAt > $1.updatedAt }
+        do {
+            return try decode(fileURL)
+        } catch {
+            guard FileManager.default.fileExists(atPath: backupURL.path) else {
+                throw AO3Error.storage("the Library database is unreadable and no recovery copy is available")
+            }
+            do { return try decode(backupURL) }
+            catch { throw AO3Error.storage("both the Library database and its recovery copy are unreadable") }
+        }
     }
 
     func save(_ records: [LibraryRecord]) throws {
@@ -25,10 +33,20 @@ actor LibraryStore {
         defer { try? FileManager.default.removeItem(at: temporary) }
         try data.write(to: temporary, options: .atomic)
         if FileManager.default.fileExists(atPath: fileURL.path) {
+            if (try? decode(fileURL)) != nil {
+                let current = try Data(contentsOf: fileURL)
+                try current.write(to: backupURL, options: .atomic)
+            }
             _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: temporary)
         } else {
             try FileManager.default.moveItem(at: temporary, to: fileURL)
         }
+    }
+
+    private func decode(_ url: URL) throws -> [LibraryRecord] {
+        let envelope = try JSONDecoder().decode(Envelope.self, from: Data(contentsOf: url))
+        guard envelope.version == 1 else { throw AO3Error.storage("unsupported Library database version") }
+        return envelope.records.sorted { $0.updatedAt > $1.updatedAt }
     }
 
     func copyManagedCover(from source: URL) throws -> URL {

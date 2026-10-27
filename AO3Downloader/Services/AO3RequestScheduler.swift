@@ -9,6 +9,7 @@ actor AO3RequestScheduler {
     private let jitter: @Sendable () -> TimeInterval
     private let sleeper: Sleeping
     private let now: @Sendable () -> Date
+    private let cooldownChanged: @Sendable (Date) -> Void
     private var inFlight = false
     private struct Waiter {
         let id: UUID
@@ -18,10 +19,12 @@ actor AO3RequestScheduler {
 
     init(minimumInterval: TimeInterval = 15, persistedCooldown: Date = .distantPast,
          sleeper: Sleeping = ContinuousSleeper(), now: @escaping @Sendable () -> Date = Date.init,
-         jitter: @escaping @Sendable () -> TimeInterval = { Double.random(in: 0.25...1.5) }) {
+         jitter: @escaping @Sendable () -> TimeInterval = { Double.random(in: 0.25...1.5) },
+         cooldownChanged: @escaping @Sendable (Date) -> Void = { _ in }) {
         self.interval = max(10, minimumInterval)
         self.nextAllowedAt = persistedCooldown
         self.sleeper = sleeper; self.now = now; self.jitter = jitter
+        self.cooldownChanged = cooldownChanged
     }
 
     func perform<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
@@ -30,7 +33,10 @@ actor AO3RequestScheduler {
         let delay = max(0, nextAllowedAt.timeIntervalSince(now()))
         if delay > 0 { try await sleeper.sleep(for: .seconds(delay)) }
         try Task.checkCancellation()
-        defer { nextAllowedAt = now().addingTimeInterval(interval + max(0, jitter())) }
+        defer {
+            nextAllowedAt = max(nextAllowedAt, now().addingTimeInterval(interval + max(0, jitter())))
+            cooldownChanged(nextAllowedAt)
+        }
         return try await operation()
     }
 
@@ -61,7 +67,11 @@ actor AO3RequestScheduler {
         }
     }
 
-    func applyCooldown(until date: Date) { nextAllowedAt = max(nextAllowedAt, date) }
+    func applyCooldown(until date: Date) {
+        guard date > nextAllowedAt else { return }
+        nextAllowedAt = date
+        cooldownChanged(nextAllowedAt)
+    }
     func cooldownDate() -> Date { nextAllowedAt }
 }
 

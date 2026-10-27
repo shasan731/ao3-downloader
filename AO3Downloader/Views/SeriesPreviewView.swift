@@ -3,6 +3,7 @@ import SwiftUI
 struct SeriesPreviewView: View {
     let series: Series
     let progressStates: [String: SeriesItemProgressState]
+    let failureMessages: [String: String]
     let isBusy: Bool
     let onSelectionChanged: (String, Bool) -> Void
     let onSelectAll: (Bool) -> Void
@@ -32,6 +33,8 @@ struct SeriesPreviewView: View {
                         if entry.accessState != .publicAccess {
                             Text(entry.accessState == .restricted ? "Restricted" : "Unavailable")
                                 .foregroundStyle(.red)
+                        } else if let message = failureMessages[entry.workID] {
+                            Text(message).font(.caption).foregroundStyle(.red).lineLimit(2)
                         }
                     }
                     Spacer()

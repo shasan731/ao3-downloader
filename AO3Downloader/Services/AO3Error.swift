@@ -9,6 +9,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
     case unavailable
     case challenged
     case throttled(Date?)
+    case networkUnavailable
+    case networkTimedOut
     case temporaryFailure(Int)
     case siteLayoutChanged(String)
     case formatUnavailable(DownloadFormat)
@@ -33,6 +35,8 @@ enum AO3Error: LocalizedError, Equatable, Sendable {
         case .throttled(let date):
             return date.map { "AO3 asked clients to retry later. Downloads are paused until \($0.formatted())." }
                 ?? "AO3 asked clients to retry later. Downloads are paused."
+        case .networkUnavailable: return "The network is unavailable. Check your connection; verified downloads are safe and can be retried."
+        case .networkTimedOut: return "The request timed out. AO3 may be busy or the connection may be unstable; please retry."
         case .temporaryFailure: return "AO3 is temporarily unavailable. Please retry later."
         case .siteLayoutChanged(let detail): return "AO3's page layout could not be recognized (\(detail))."
         case .formatUnavailable(let format): return "AO3 does not offer \(format.rawValue) for this work."
