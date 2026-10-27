@@ -18,14 +18,14 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                Section("Workspace") {
+                SwiftUI.Section("Workspace") {
                     sidebarItem(.new)
                     sidebarItem(.queue)
                 }
-                Section("Collection") {
+                SwiftUI.Section("Collection") {
                     sidebarItem(.history)
                 }
-                Section("ArchiveBind") {
+                SwiftUI.Section("ArchiveBind") {
                     sidebarItem(.settings)
                     sidebarItem(.about)
                 }

@@ -14,7 +14,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Environment
         run: |
           sw_vers
@@ -64,14 +64,14 @@ jobs:
       - name: Package
         run: Scripts/package-app.sh build/DerivedData/Build/Products/Release/AO3Downloader.app build/artifacts
       - name: Upload products
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ArchiveBind-${{ github.sha }}
           path: build/artifacts/*
           retention-days: 14
       - name: Upload test diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-diagnostics-${{ github.sha }}
           path: |
