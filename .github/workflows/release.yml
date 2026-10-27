@@ -16,10 +16,17 @@ jobs:
           echo "a760b4bf97460341316a2c00d8c87b2946c6c2729eb57e9a72abb3ef7bc0ef82  /tmp/xcodegen.zip" | shasum -a 256 -c -
           ditto -x -k /tmp/xcodegen.zip /tmp/xcodegen
           echo "/tmp/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
-      - name: Test and build once
+      - name: Test
         run: |
           xcodegen generate --spec project.yml
-          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" CODE_SIGNING_ALLOWED=NO test build
+          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO test
+      - name: Build, verify, and package
+        run: |
+          xcodebuild -project AO3Downloader.xcodeproj -scheme AO3Downloader -configuration Release \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO build
           app="build/DerivedData/Build/Products/Release/AO3Downloader.app"
           /usr/bin/codesign --force --sign - \
             --entitlements AO3Downloader/Resources/AO3Downloader.entitlements "$app"

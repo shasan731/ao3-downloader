@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 (2026-10-27)
+
+- Aligned the tag-release validation stages with the proven main-branch test and Release-build sequence.
+
 ## 0.1.1 (2026-10-27)
 
 - Prepared the first public ArchiveBind release after the verified branding, responsive-interface, Library, packaging, and repository overhaul.
