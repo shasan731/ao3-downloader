@@ -19,6 +19,8 @@
 - Editable title, authors, language, and managed JPEG/PNG cover metadata for single works, retained parts, new combined books, and existing combined EPUB/PDF files.
 - Synthetic tests for Library round trips, live deselection, retained-source reuse, EPUB package metadata/cover/front-matter navigation, and PDF metadata/cover/clickable Contents/outline regeneration.
 - Busy-safe New Download workspace reset after browsing Library, without interrupting active operations or deleting history.
+- Size-stable large-series preview with a bounded lazy scroller, title/part search, progress-state filters, live counters, collapsible descriptions, and automatic active-part tracking.
+- Quality-of-life URL trimming/clearing, Return-to-analyze, Escape-to-cancel, and a stable minimum window size.
 - arm64 GitHub Actions test/build/ArchiveBind ZIP/DMG/checksum pipeline and stable tag-release workflow.
 
 ## Not yet supported

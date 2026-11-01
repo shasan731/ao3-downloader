@@ -4,15 +4,32 @@ import SwiftUI
 struct NewDownloadView: View {
     @ObservedObject var model: NewDownloadViewModel
     @AppStorage("allowAdultContent") private var allowAdultContent = false
+    @FocusState private var isURLFieldFocused: Bool
     var body: some View {
         Form {
             Section("Source") {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("https://archiveofourown.org/works/… or /series/…", text: $model.input)
-                        .textFieldStyle(.roundedBorder)
-                        .controlSize(.large)
-                        .accessibilityLabel("AO3 URL")
-                        .disabled(model.isBusy)
+                    HStack(spacing: 8) {
+                        TextField("https://archiveofourown.org/works/… or /series/…", text: $model.input)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.large)
+                            .focused($isURLFieldFocused)
+                            .accessibilityLabel("AO3 URL")
+                            .disabled(model.isBusy)
+                            .onSubmit { model.startAnalyze() }
+                        if !model.input.isEmpty && !model.isBusy {
+                            Button {
+                                model.input = ""
+                                isURLFieldFocused = true
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("Clear URL")
+                            .accessibilityLabel("Clear AO3 URL")
+                        }
+                    }
                     HStack {
                         Button("Paste", systemImage: "doc.on.clipboard") { model.paste() }
                             .disabled(model.isBusy)
@@ -82,6 +99,9 @@ struct NewDownloadView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("New Download")
+        .onAppear {
+            if model.input.isEmpty { isURLFieldFocused = true }
+        }
     }
 }
 

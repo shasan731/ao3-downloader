@@ -47,6 +47,7 @@ struct MainView: View {
                 downloadModel.prepareNewDownloadWorkspace()
             }
         }
+        .frame(minWidth: 760, minHeight: 520)
     }
 
     @ViewBuilder

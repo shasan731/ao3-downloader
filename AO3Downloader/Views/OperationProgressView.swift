@@ -14,7 +14,10 @@ struct OperationProgressView: View {
                     Text(operation.detail).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 Spacer()
-                if canCancel { Button("Cancel", role: .destructive, action: onCancel) }
+                if canCancel {
+                    Button("Cancel", role: .destructive, action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                }
             }
             if let total = operation.totalCount, total > 0 {
                 ProgressView(value: Double(min(operation.completedCount, total)), total: Double(total))

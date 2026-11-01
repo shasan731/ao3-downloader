@@ -101,7 +101,8 @@ final class NewDownloadViewModel: ObservableObject {
     }
 
     func paste() {
-        input = NSPasteboard.general.string(forType: .string) ?? input
+        guard let pasted = NSPasteboard.general.string(forType: .string) else { return }
+        input = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func chooseFolder() {
@@ -111,7 +112,9 @@ final class NewDownloadViewModel: ObservableObject {
     }
 
     func startAnalyze() {
-        guard operationTask == nil else { return }
+        let normalizedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard operationTask == nil, !normalizedInput.isEmpty else { return }
+        input = normalizedInput
         isBusy = true
         operationTask = Task { [weak self] in
             await self?.analyze()

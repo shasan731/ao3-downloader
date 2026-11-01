@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 (2026-11-01)
+
+- Fixed long series previews expanding the app window in proportion to the number of stories by moving parts into a fixed-height lazy scroller.
+- Added large-series search and status filters, saved/failed counters, a collapsible description, and automatic scrolling to the active download.
+- Added whitespace-safe URL paste/analysis, a one-click URL clear control, Return-to-analyze, Escape-to-cancel, and a stable minimum window size.
+
 ## 0.1.2 (2026-10-27)
 
 - Aligned the tag-release validation stages with the proven main-branch test and Release-build sequence.
