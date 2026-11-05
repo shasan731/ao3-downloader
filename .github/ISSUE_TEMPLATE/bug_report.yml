@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: ArchiveBind version
-      placeholder: "0.1.0"
+      placeholder: "0.2.0"
     validations:
       required: true
   - type: input
@@ -23,7 +23,7 @@ body:
     id: area
     attributes:
       label: Area
-      options: [Analysis, Download, Combined book, Library, Metadata, Interface, Installation, Other]
+      options: [AO3 analysis/download, FanFiction.net analysis/download, Combined book, Library, Metadata, Interface, Installation, Other]
     validations:
       required: true
   - type: textarea

@@ -40,7 +40,13 @@ jobs:
           generate_release_notes: true
           body: |
             ## Install
-            Download the DMG, verify it against `SHA256SUMS.txt`, and drag ArchiveBind to Applications.
+            Download the DMG and `SHA256SUMS.txt`. From the download folder, verify it with:
+
+            ```sh
+            grep 'ArchiveBind-macOS-arm64.dmg$' SHA256SUMS.txt | shasum -a 256 -c -
+            ```
+
+            After it reports `OK`, open the DMG and drag ArchiveBind to Applications.
 
             This community build has an ad-hoc integrity signature but is not Developer ID signed or notarized. macOS may require **System Settings → Privacy & Security → Open Anyway** after the first launch attempt. Never disable Gatekeeper globally.
           files: build/artifacts/*
