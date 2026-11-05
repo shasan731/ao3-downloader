@@ -36,7 +36,7 @@ final class WorkspaceStateTests: XCTestCase {
         XCTAssertNil(model.series)
         XCTAssertNil(model.work)
         XCTAssertNil(model.activeOperation)
-        XCTAssertEqual(model.status, "Paste a public AO3 work or series URL to begin.")
+        XCTAssertEqual(model.status, "Paste a public AO3 or FanFiction.net URL to begin.")
         XCTAssertEqual(model.historyRecords.map(\.id), [record.id])
         XCTAssertFalse(model.hasLoadedLibraryRecord)
     }
