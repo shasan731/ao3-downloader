@@ -10,11 +10,11 @@ struct NewDownloadView: View {
             Section("Source") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        TextField("https://archiveofourown.org/works/… or /series/…", text: $model.input)
+                        TextField("AO3 work/series or FanFiction.net story URL", text: $model.input)
                             .textFieldStyle(.roundedBorder)
                             .controlSize(.large)
                             .focused($isURLFieldFocused)
-                            .accessibilityLabel("AO3 URL")
+                            .accessibilityLabel("Story source URL")
                             .disabled(model.isBusy)
                             .onSubmit { model.startAnalyze() }
                         if !model.input.isEmpty && !model.isBusy {
@@ -27,7 +27,7 @@ struct NewDownloadView: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
                             .help("Clear URL")
-                            .accessibilityLabel("Clear AO3 URL")
+                            .accessibilityLabel("Clear story source URL")
                         }
                     }
                     HStack {
@@ -41,10 +41,16 @@ struct NewDownloadView: View {
                             .disabled(model.isBusy || model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-                Toggle("Allow public Mature/Explicit works", isOn: $allowAdultContent)
-                Text("This sends AO3’s “Yes, continue” choice with work requests. It does not share browser cookies or sign in to AO3.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !isFanFictionInput {
+                    Toggle("Allow public Mature/Explicit AO3 works", isOn: $allowAdultContent)
+                    Text("This sends AO3’s “Yes, continue” choice with work requests. It does not share browser cookies or sign in.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("FanFiction.net stories are assembled locally from their public chapter pages. Browser verification pages are never bypassed.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Label {
                     Text(model.status).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 } icon: {
@@ -102,6 +108,10 @@ struct NewDownloadView: View {
         .onAppear {
             if model.input.isEmpty { isURLFieldFocused = true }
         }
+    }
+
+    private var isFanFictionInput: Bool {
+        URLComponents(string: model.input.trimmingCharacters(in: .whitespacesAndNewlines))?.host?.lowercased() == "www.fanfiction.net"
     }
 }
 

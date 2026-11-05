@@ -5,13 +5,14 @@ actor DownloadManager {
     private let naming = FileNamingService()
     init(provider: AO3Providing) { self.provider = provider }
 
-    func download(work: Work, format: DownloadFormat, to directory: URL) async throws -> URL {
+    func download(work: Work, format: DownloadFormat, to directory: URL,
+                  progress: @escaping @Sendable (WorkDownloadProgress) async -> Void = { _ in }) async throws -> URL {
         guard directory.isFileURL else { throw AO3Error.storage("destination is not a local folder") }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw AO3Error.storage("destination folder is unavailable")
         }
-        let staged = try await provider.download(work, format: format)
+        let staged = try await provider.download(work, format: format, progress: progress)
         let target = naming.availableURL(in: directory, filename: naming.filename(for: work, format: format))
         do {
             // The URLSession file is already private temporary storage; move only after verification.
@@ -296,6 +297,7 @@ actor DownloadManager {
         case .networkUnavailable: return "offline"
         case .networkTimedOut: return "timeout"
         case .challenged: return "challenge"
+        case .challengedSite: return "challenge"
         case .storage: return "storage"
         case .invalidDownload: return "verification"
         default: return "download-failed"

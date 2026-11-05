@@ -12,7 +12,9 @@ struct AppDependencies {
         let configuredInterval = defaults.object(forKey: "minimumRequestInterval") as? Double ?? 15
         let scheduler = AO3RequestScheduler(minimumInterval: max(10, configuredInterval), persistedCooldown: cooldown,
                                             cooldownChanged: { UserDefaults.standard.set($0, forKey: "AO3NextAllowedAt") })
-        let provider = AO3Client(scheduler: scheduler)
+        let ao3 = AO3Client(scheduler: scheduler)
+        let fanFiction = FanFictionClient(scheduler: scheduler)
+        let provider = MultiSiteProvider(ao3: ao3, fanFiction: fanFiction)
         return AppDependencies(provider: provider, manager: DownloadManager(provider: provider),
                                persistence: DownloadPersistence(), libraryStore: LibraryStore())
     }()

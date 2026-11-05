@@ -4,7 +4,7 @@
 
 - [User guide](USER_GUIDE.md) — analyzing, downloading, combining, retrying, and updating books.
 - [Troubleshooting](TROUBLESHOOTING.md) — launch problems, checksums, network errors, and missing files.
-- [Privacy](PRIVACY.md) — what stays on-device and what is sent to AO3.
+- [Privacy](PRIVACY.md) — what stays on-device and what is sent to supported story sites.
 
 ## For maintainers
 
@@ -16,3 +16,4 @@
 - [Release signing](RELEASE_SIGNING.md) — Developer ID signing and notarization.
 - [Brand](BRAND.md) — naming, icon assets, and generation source.
 - [AO3 policy notes](AO3_POLICY_NOTES.md) — responsible-use assumptions.
+- [FanFiction.net policy notes](FANFICTION_NET_POLICY_NOTES.md) — request pacing, personal-use boundary, and verification limitations.

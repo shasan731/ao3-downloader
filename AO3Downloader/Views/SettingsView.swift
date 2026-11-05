@@ -24,7 +24,7 @@ struct SettingsView: View {
                 GroupBox("Network Courtesy") {
                     VStack(alignment: .leading, spacing: 10) {
                         Stepper("Minimum request interval: \(Int(interval)) seconds", value: $interval, in: 10...120, step: 5)
-                        Text("Requests remain globally serialized. This conservative app setting is not an AO3-provided quota; a longer interval is gentler. Changes apply after relaunch.")
+                        Text("Requests to AO3 and FanFiction.net remain globally serialized. This conservative app setting is not a site-provided quota; a longer interval is gentler. Changes apply after relaunch.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

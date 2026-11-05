@@ -23,6 +23,8 @@ protocol AO3Providing: Sendable {
     func analyzeSeries(_ link: AO3Link) async throws -> Series
     func analyzeSeries(_ link: AO3Link, progress: @escaping @Sendable (SeriesAnalysisProgress) async -> Void) async throws -> Series
     func download(_ work: Work, format: DownloadFormat) async throws -> URL
+    func download(_ work: Work, format: DownloadFormat,
+                  progress: @escaping @Sendable (WorkDownloadProgress) async -> Void) async throws -> URL
 }
 
 extension AO3Providing {
@@ -31,6 +33,11 @@ extension AO3Providing {
         await progress(.init(pagesCompleted: 1, worksDiscovered: series.orderedWorks.count))
         return series
     }
+
+    func download(_ work: Work, format: DownloadFormat,
+                  progress: @escaping @Sendable (WorkDownloadProgress) async -> Void) async throws -> URL {
+        try await download(work, format: format)
+    }
 }
 
 final class AO3Client: AO3Providing, @unchecked Sendable {
@@ -38,7 +45,7 @@ final class AO3Client: AO3Providing, @unchecked Sendable {
     private let scheduler: AO3RequestScheduler
     private let parser: AO3HTMLParser
     private let allowsAdultContent: @Sendable () -> Bool
-    private let userAgent = "ArchiveBind/0.1 (unofficial personal-use app; https://github.com/shasan731/ao3-downloader)"
+    private let userAgent = "ArchiveBind/0.2 (unofficial personal-use app; https://github.com/shasan731/ao3-downloader)"
 
     init(transport: HTTPTransport = URLSessionTransport(), scheduler: AO3RequestScheduler,
          parser: AO3HTMLParser = .init(),

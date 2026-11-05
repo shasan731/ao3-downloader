@@ -2,6 +2,25 @@ import Foundation
 
 enum AO3LinkKind: String, Codable, Sendable { case work, series }
 
+enum SupportedSite: String, Codable, Sendable {
+    case ao3
+    case fanFictionNet
+
+    var displayName: String {
+        switch self {
+        case .ao3: "Archive of Our Own"
+        case .fanFictionNet: "FanFiction.net"
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .ao3: "AO3"
+        case .fanFictionNet: "FFN"
+        }
+    }
+}
+
 struct AO3Link: Codable, Hashable, Sendable {
     let kind: AO3LinkKind
     let id: String
@@ -54,6 +73,12 @@ struct SeriesAnalysisProgress: Sendable {
     let worksDiscovered: Int
 }
 
+struct WorkDownloadProgress: Sendable {
+    let completedChapters: Int
+    let totalChapters: Int
+    let currentChapterTitle: String?
+}
+
 struct SeriesDownloadProgress: Sendable {
     let stage: OperationStage
     let totalCount: Int
@@ -89,6 +114,13 @@ struct Work: Identifiable, Codable, Hashable, Sendable {
     var wordCount: Int?
     var downloadableFormats: [DownloadFormat: URL]
     var accessState: AccessState
+}
+
+
+extension Work {
+    var sourceSite: SupportedSite {
+        sourceURL.host?.lowercased() == "www.fanfiction.net" ? .fanFictionNet : .ao3
+    }
 }
 
 struct SeriesEntry: Identifiable, Codable, Hashable, Sendable {

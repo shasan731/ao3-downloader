@@ -7,7 +7,7 @@
 <p align="center"><strong>Your stories, beautifully bound.</strong></p>
 
 <p align="center">
-  A private, local-first macOS app for saving public Archive of Our Own works and turning a series into a polished EPUB or PDF anthology.
+  A private, local-first macOS app for binding public AO3 and FanFiction.net stories into polished EPUB, PDF, and HTML books.
 </p>
 
 <p align="center">
@@ -17,11 +17,12 @@
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-111111">
 </p>
 
-> ArchiveBind is unofficial and is not affiliated with Archive of Our Own or the Organization for Transformative Works.
+> ArchiveBind is unofficial and is not affiliated with Archive of Our Own, the Organization for Transformative Works, or FanFiction.net.
 
 ## Why ArchiveBind?
 
 - Download a public work as AO3’s complete EPUB, PDF, or HTML file.
+- Turn a public single- or multi-chapter FanFiction.net story into a locally generated EPUB, PDF, or HTML book with linked chapter navigation.
 - Analyze ordered series, choose exactly which parts to keep, and change that selection during a download.
 - Build book-quality combined EPUB/PDF editions with linked contents, story and chapter navigation, title pages, and PDF bookmarks.
 - Retry individual failures without losing successful parts, then combine when the chosen set is complete.
@@ -40,9 +41,9 @@ ArchiveBind currently targets Apple silicon and macOS 14 or later. The Actions p
 
 ## Quick start
 
-Paste a public AO3 work, chapter, or series URL into **New Download**, select **Analyze**, review the results, choose a destination and output format, then download. Activity continues if you open another section. For a saved series, use **Library** to retry failures, adjust its selected parts, edit metadata, reanalyze for additions, or make another combined edition.
+Paste a public AO3 work/chapter/series URL or a `www.fanfiction.net/s/…` story URL into **New Download**, select **Analyze**, review the results, choose a destination and output format, then download. Activity continues if you open another section. FanFiction.net chapters are fetched one at a time through the same courteous global queue and assembled locally. For a saved AO3 series, use **Library** to retry failures, adjust its selected parts, edit metadata, reanalyze for additions, or make another combined edition.
 
-Public Mature/Explicit warning pages require the explicit consent toggle. Login-only works, browser-session reuse, CAPTCHA bypass, and mirror fallback are intentionally unsupported.
+Public AO3 Mature/Explicit warning pages require the explicit consent toggle. Login-only works, browser-session reuse, verification/CAPTCHA bypass, and mirror fallback are intentionally unsupported. FanFiction.net may present Cloudflare browser verification; ArchiveBind reports that condition and does not bypass it.
 
 ## Documentation
 
@@ -51,6 +52,7 @@ Public Mature/Explicit warning pages require the explicit consent toggle. Login-
 | [User guide](docs/USER_GUIDE.md) | Complete download, Library, retry, and recombination workflow |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | macOS launch, damaged-app, network, and output help |
 | [Privacy](docs/PRIVACY.md) | Data storage and network behavior |
+| [FanFiction.net policy notes](docs/FANFICTION_NET_POLICY_NOTES.md) | Request pacing, terms boundary, and challenge behavior |
 | [Architecture](ARCHITECTURE.md) | Design, safety boundaries, and book assembly |
 | [Implementation status](docs/IMPLEMENTATION_STATUS.md) | Verified capabilities and known gaps |
 | [CI/CD](docs/CI_CD.md) | Builds, artifacts, release automation, and checksums |
@@ -60,6 +62,6 @@ The [documentation index](docs/README.md) links the remaining policy and test re
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Automated tests use only synthetic fixtures—never live AO3 traffic. Security concerns should follow [SECURITY.md](SECURITY.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Automated tests use only synthetic fixtures—never live AO3 or FanFiction.net traffic. Security concerns should follow [SECURITY.md](SECURITY.md).
 
 ArchiveBind is available under the [MIT License](LICENSE). It uses pinned versions of SwiftSoup and ZIPFoundation, both MIT licensed.

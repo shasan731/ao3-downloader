@@ -27,7 +27,7 @@ struct AboutView: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
-                Text("A private, local-first macOS companion for saving public AO3 works and crafting polished personal ebooks.")
+                Text("A private, local-first macOS companion for saving public AO3 and FanFiction.net stories and crafting polished personal ebooks.")
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 12) {
@@ -37,12 +37,15 @@ struct AboutView: View {
                 Divider()
                 Label("No telemetry • No account access • Local Library", systemImage: "lock.shield.fill")
                     .foregroundStyle(.secondary)
-                Text("ArchiveBind is unofficial and is not affiliated with Archive of Our Own or the Organization for Transformative Works. Please download responsibly and respect creators’ choices.")
+                Text("ArchiveBind is unofficial and is not affiliated with Archive of Our Own, the Organization for Transformative Works, or FanFiction.net. Downloads are for personal use; please respect site terms and creators’ choices.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                Link("AO3 Terms of Service FAQ", destination: URL(string: "https://archiveofourown.org/tos_faq")!)
+                HStack(spacing: 12) {
+                    Link("AO3 Terms FAQ", destination: URL(string: "https://archiveofourown.org/tos_faq")!)
+                    Link("FanFiction.net Terms", destination: URL(string: "https://www.fanfiction.net/tos/")!)
+                }
             }
             .padding(36)
             .frame(maxWidth: 580)

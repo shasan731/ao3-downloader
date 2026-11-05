@@ -11,7 +11,7 @@ final class NewDownloadViewModel: ObservableObject {
     @Published var format: DownloadFormat = .epub
     @Published var seriesOutputMode: SeriesOutputMode = .separate
     @Published var destination: URL?
-    @Published var status = "Paste a public AO3 work or series URL to begin."
+    @Published var status = "Paste a public AO3 or FanFiction.net URL to begin."
     @Published var isBusy = false
     @Published var outputURL: URL?
     @Published var activeOperation: ActiveOperation?
@@ -55,7 +55,7 @@ final class NewDownloadViewModel: ObservableObject {
         format = .epub
         seriesOutputMode = .separate
         destination = nil
-        status = "Paste a public AO3 work or series URL to begin."
+        status = "Paste a public AO3 or FanFiction.net URL to begin."
         outputURL = nil
         activeOperation = nil
         seriesItemStates = [:]
@@ -150,11 +150,11 @@ final class NewDownloadViewModel: ObservableObject {
         }
         activeOperation = .init(kind: .analysis, stage: .validating, startedAt: .now,
                                 completedCount: 0, totalCount: nil, currentTitle: nil,
-                                detail: "Validating the AO3 URL")
+                                detail: "Validating the source URL")
         defer { isBusy = false }
         do {
             try Task.checkCancellation()
-            let link = try AO3URLParser().parse(input)
+            let link = try SourceURLParser().parse(input)
             status = "Analyzing through the polite request queue…"
             activeOperation?.stage = .fetching
             activeOperation?.currentTitle = link.canonicalURL.absoluteString
@@ -170,7 +170,11 @@ final class NewDownloadViewModel: ObservableObject {
                 activeOperation?.completedCount = 1
                 activeOperation?.stage = .completed
                 activeOperation?.detail = "Work analysis complete"
-                status = "Ready to download the complete AO3-provided file."
+                if work?.sourceSite == .fanFictionNet {
+                    status = "Ready. ArchiveBind will fetch each chapter politely and build the complete book locally."
+                } else {
+                    status = "Ready to download the complete AO3-provided file."
+                }
             case .series:
                 var analyzed = try await dependencies.provider.analyzeSeries(link) { [weak self] progress in
                     await self?.applyAnalysisProgress(progress)
@@ -279,7 +283,7 @@ final class NewDownloadViewModel: ObservableObject {
         activeOperation = .init(kind: .download, stage: .downloading, startedAt: .now,
                                 completedCount: 0, totalCount: selectedCount ?? 1,
                                 currentTitle: work?.title ?? series?.title,
-                                detail: "Waiting for the courteous AO3 request queue")
+                                detail: "Waiting for the courteous global request queue")
         if let series {
             let verified = Set(downloadedParts.map { $0.work.id })
             let failed = Set(currentFailures.map(\.workID))
@@ -294,7 +298,9 @@ final class NewDownloadViewModel: ObservableObject {
         do {
             try Task.checkCancellation()
             if let work {
-                outputURL = try await dependencies.manager.download(work: work, format: format, to: destination)
+                outputURL = try await dependencies.manager.download(work: work, format: format, to: destination) { [weak self] progress in
+                    await self?.applyWorkDownloadProgress(progress)
+                }
                 if (format == .pdf || metadataWasCustomized(from: work)), let fileURL = outputURL {
                     let metadata = editableMetadata, selectedFormat = format
                     try await Task.detached {
@@ -364,6 +370,13 @@ final class NewDownloadViewModel: ObservableObject {
         if currentLibraryRecordID == nil, let series {
             await saveSeriesCheckpoint(series: series, directory: progress.outputDirectory)
         }
+    }
+
+    private func applyWorkDownloadProgress(_ progress: WorkDownloadProgress) {
+        activeOperation?.totalCount = progress.totalChapters
+        activeOperation?.completedCount = progress.completedChapters
+        activeOperation?.currentTitle = progress.currentChapterTitle
+        activeOperation?.detail = "Fetched \(progress.completedChapters) of \(progress.totalChapters) chapter\(progress.totalChapters == 1 ? "" : "s")"
     }
 
     private func recordCompletedPart(_ part: DownloadedPart) async {

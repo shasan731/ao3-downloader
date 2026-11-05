@@ -3,7 +3,7 @@ import Foundation
 struct FileNamingService: Sendable {
     func filename(for work: Work, format: DownloadFormat) -> String {
         let author = work.creators.joined(separator: ", ")
-        return sanitize("\(work.title) - \(author.isEmpty ? "Unknown Creator" : author) [AO3-\(work.id)].\(format.fileExtension)")
+        return sanitize("\(work.title) - \(author.isEmpty ? "Unknown Creator" : author) [\(work.sourceSite.shortName)-\(work.id)].\(format.fileExtension)")
     }
 
     func sanitize(_ value: String) -> String {
@@ -12,7 +12,7 @@ struct FileNamingService: Sendable {
         result = result.replacingOccurrences(of: #"\.\."#, with: "-", options: .regularExpression)
         result = result.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
         if result.utf8.count > 220 { result = String(result.prefix(180)) + "-truncated" }
-        return result.isEmpty ? "AO3 Download" : result
+        return result.isEmpty ? "ArchiveBind Download" : result
     }
 
     func availableURL(in directory: URL, filename: String, fileManager: FileManager = .default) -> URL {

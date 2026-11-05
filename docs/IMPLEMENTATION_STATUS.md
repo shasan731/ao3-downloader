@@ -3,10 +3,10 @@
 ## Implemented and CI-verified
 
 - Native macOS 14 SwiftUI navigation shell with ArchiveBind branding and original icon, responsive work input/preview, folder chooser, format picker, open/reveal actions, narrow-window Settings, and About.
-- Exact HTTPS host/path validation and chapter-to-work normalization.
+- Exact HTTPS host/path validation for AO3 and `www.fanfiction.net`, with AO3 chapter-to-work and FanFiction.net chapter-to-story normalization.
 - Explicit public Mature/Explicit consent handling with adult-warning detection and strict same-work canonical/first-chapter redirect validation; multi-chapter parts still use AO3's complete-work downloads.
 - Public work metadata parsing with SwiftSoup and discovered official EPUB/PDF/HTML links.
-- One in-flight AO3 request lifecycle globally, 15-second default spacing, cancellation-aware waiting, numeric/HTTP-date `Retry-After` parsing, and relaunch-safe cooldown persistence.
+- One in-flight request lifecycle globally across both sites, 15-second default spacing, cancellation-aware waiting, numeric/HTTP-date `Retry-After` parsing, and relaunch-safe cooldown persistence.
 - Actionable offline/timeout/status classification, challenge/restricted detection, bounded HTML reads, and host-safe downloads.
 - PDF/EPUB/HTML signatures and basic EPUB structure validation before safe, auto-renamed output.
 - Bounded series pagination with cycle/host/path protection, author-order selection, sequential separate-file downloads, inaccessible-work visibility, and partial `download-report.json` output.
@@ -21,6 +21,8 @@
 - Busy-safe New Download workspace reset after browsing Library, without interrupting active operations or deleting history.
 - Size-stable large-series preview with a bounded lazy scroller, title/part search, progress-state filters, live counters, collapsible descriptions, and automatic active-part tracking.
 - Quality-of-life URL trimming/clearing, Return-to-analyze, Escape-to-cancel, and a stable minimum window size.
+- FanFiction.net single- and multi-chapter story analysis with source-aware metadata, chapter-level download progress, bounded page reads, exact same-story redirect checks, and sanitized local EPUB 3/PDF/HTML generation with linked Contents/bookmarks and editable metadata.
+- FanFiction.net challenge/unavailable-page recognition with no browser-cookie import, security-feature bypass, or fallback scraping; offline fixtures cover URL safety, metadata, sanitization, challenge classification, and all three book formats.
 - arm64 GitHub Actions test/build/ArchiveBind ZIP/DMG/checksum pipeline and stable tag-release workflow.
 
 ## Not yet supported
@@ -29,6 +31,8 @@
 - Automatic offline monitoring, resume-on-reconnect, and notifications.
 - Automatic bounded retry attempts for transient server failures (manual individual/bulk retry is supported).
 - Developer ID signing and notarization. CI artifacts use an ad-hoc integrity signature only.
+- FanFiction.net communities/favorites lists as series. FanFiction.net has no native ordered-series object comparable to AO3 series.
+- FanFiction.net pages while its browser-verification challenge blocks ordinary HTTPS clients. ArchiveBind deliberately does not circumvent that control.
 
 ## Verification state
 

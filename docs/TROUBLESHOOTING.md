@@ -8,7 +8,11 @@ Do not disable Gatekeeper globally. Re-download the release if the checksum does
 
 ## Analysis or download appears slow
 
-ArchiveBind deliberately serializes all AO3 requests and waits at least the configured interval. AO3 may request a longer cooldown. The **Activity** section shows the current stage and elapsed time; switching sections does not stop the task.
+ArchiveBind deliberately serializes all source requests and waits at least the configured interval. A source may request a longer cooldown. Multi-chapter FanFiction.net books require one request per chapter, so long stories take time by design. The **Activity** section shows the current stage, chapter/part count, and elapsed time; switching sections does not stop the task.
+
+## FanFiction.net says browser verification is required
+
+FanFiction.net may return a Cloudflare verification page to ordinary HTTPS clients. ArchiveBind does not bypass security controls or import browser cookies, so it stops with a clear challenge message. Try again later or use the website. Repeated retries usually do not help while the site is challenging your network.
 
 ## A series part failed
 

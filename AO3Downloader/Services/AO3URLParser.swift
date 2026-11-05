@@ -26,3 +26,16 @@ struct AO3URLParser: Sendable {
     }
 }
 
+struct SourceURLParser: Sendable {
+    func parse(_ input: String) throws -> AO3Link {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: trimmed),
+              let host = components.host?.lowercased() else { throw AO3Error.invalidURL("enter a complete HTTPS address") }
+        switch host {
+        case "archiveofourown.org": return try AO3URLParser().parse(trimmed)
+        case "www.fanfiction.net": return try FanFictionURLParser().parse(trimmed)
+        default: throw AO3Error.unsupportedHost
+        }
+    }
+}
+

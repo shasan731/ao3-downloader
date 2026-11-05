@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (2026-11-06)
+
+- Added exact-host FanFiction.net story analysis and complete single-/multi-chapter EPUB, PDF, and HTML downloads.
+- Added locally generated title pages, linked Contents, chapter navigation/bookmarks, metadata editing, source-aware filenames, and real per-chapter progress for FanFiction.net.
+- Added globally serialized cross-provider requests, bounded page/book sizes, same-story redirect validation, active-markup sanitization, and explicit verification-challenge handling without browser-cookie reuse or bypasses.
+- Added fully offline FanFiction.net URL/parser/challenge/book-generation fixtures and expanded privacy, policy, troubleshooting, and user documentation.
+
 ## 0.1.3 (2026-11-01)
 
 - Fixed long series previews expanding the app window in proportion to the number of stories by moving parts into a fixed-height lazy scroller.
