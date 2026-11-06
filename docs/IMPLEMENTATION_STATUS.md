@@ -22,6 +22,8 @@
 - Size-stable large-series preview with a bounded lazy scroller, title/part search, progress-state filters, live counters, collapsible descriptions, and automatic active-part tracking.
 - Quality-of-life URL trimming/clearing, Return-to-analyze, Escape-to-cancel, and a stable minimum window size.
 - FanFiction.net single- and multi-chapter story analysis with source-aware metadata, chapter-level download progress, bounded page reads, exact same-story redirect checks, and sanitized local EPUB 3/PDF/HTML generation with linked Contents/bookmarks and editable metadata.
+- Durable Activity history for single stories and series with atomic per-chapter/per-part checkpoints, distinct fetching/building/verifying phases, persistent failure details, completed-output reopening, interrupted-operation recovery after relaunch, and one-click safe retry without repopulating New Download.
+- App-wide compact live-progress controls, Activity attention badges, and narrow-window-safe Activity/Library layouts so sidebar navigation remains usable throughout long downloads.
 - FanFiction.net challenge/unavailable-page recognition with no browser-cookie import, security-feature bypass, or fallback scraping; offline fixtures cover URL safety, metadata, sanitization, challenge classification, and all three book formats.
 - arm64 GitHub Actions test/build/ArchiveBind ZIP/DMG/checksum pipeline and stable tag-release workflow.
 

@@ -77,6 +77,15 @@ struct WorkDownloadProgress: Sendable {
     let completedChapters: Int
     let totalChapters: Int
     let currentChapterTitle: String?
+    let stage: OperationStage
+
+    init(completedChapters: Int, totalChapters: Int, currentChapterTitle: String?,
+         stage: OperationStage = .downloading) {
+        self.completedChapters = completedChapters
+        self.totalChapters = totalChapters
+        self.currentChapterTitle = currentChapterTitle
+        self.stage = stage
+    }
 }
 
 struct SeriesDownloadProgress: Sendable {
@@ -158,6 +167,39 @@ struct DownloadJob: Identifiable, Codable, Sendable {
     var errorMessage: String?
     let createdAt: Date
     var lastUpdatedAt: Date
+    var title: String? = nil
+    var destinationBookmark: Data? = nil
+    var completedUnitCount: Int? = nil
+    var totalUnitCount: Int? = nil
+    var currentUnitTitle: String? = nil
+    var statusDetail: String? = nil
+    var outputMode: SeriesOutputMode? = nil
+}
+
+extension DownloadJobState {
+    var isTerminal: Bool {
+        switch self {
+        case .completed, .completedPartial, .failed, .cancelled: true
+        default: false
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .queued: "Queued"
+        case .analyzing: "Analyzing"
+        case .ready: "Ready"
+        case .downloading: "Downloading"
+        case .backingOff: "Waiting"
+        case .paused: "Paused"
+        case .assembling: "Building book"
+        case .verifying: "Verifying"
+        case .completed: "Completed"
+        case .completedPartial: "Completed with issues"
+        case .failed: "Needs attention"
+        case .cancelled: "Cancelled"
+        }
+    }
 }
 
 struct SeriesDownloadFailure: Codable, Hashable, Sendable {

@@ -13,6 +13,9 @@ actor DownloadManager {
             throw AO3Error.storage("destination folder is unavailable")
         }
         let staged = try await provider.download(work, format: format, progress: progress)
+        await progress(.init(completedChapters: work.chapterCountPublished ?? 1,
+                             totalChapters: work.chapterCountPublished ?? 1,
+                             currentChapterTitle: work.title, stage: .verifying))
         let target = naming.availableURL(in: directory, filename: naming.filename(for: work, format: format))
         do {
             // The URLSession file is already private temporary storage; move only after verification.

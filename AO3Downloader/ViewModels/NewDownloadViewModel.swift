@@ -19,12 +19,14 @@ final class NewDownloadViewModel: ObservableObject {
     @Published var downloadedParts: [DownloadedPart] = []
     @Published var currentFailures: [SeriesDownloadFailure] = []
     @Published var historyRecords: [LibraryRecord] = []
+    @Published var downloadJobs: [DownloadJob] = []
     @Published var metadataTitle = ""
     @Published var metadataAuthors = ""
     @Published var metadataLanguage = "en"
     @Published var metadataCoverURL: URL?
     private let dependencies: AppDependencies
     private var operationTask: Task<Void, Never>?
+    private var currentDownloadJobID: UUID?
     private var currentLibraryRecordID: UUID?
     private var pendingReanalysisRecord: LibraryRecord?
     private var isViewingLibraryRecord = false
@@ -32,7 +34,10 @@ final class NewDownloadViewModel: ObservableObject {
 
     init(dependencies: AppDependencies = .live) {
         self.dependencies = dependencies
-        Task { [weak self] in await self?.loadHistory() }
+        Task { [weak self] in
+            await self?.loadHistory()
+            await self?.loadDownloadJobs()
+        }
     }
 
     var editableMetadata: EditableBookMetadata {
@@ -270,6 +275,7 @@ final class NewDownloadViewModel: ObservableObject {
         isBusy = true
         operationTask = Task { [weak self] in
             await self?.download()
+            self?.currentDownloadJobID = nil
             self?.operationTask = nil
         }
     }
@@ -284,6 +290,7 @@ final class NewDownloadViewModel: ObservableObject {
                                 completedCount: 0, totalCount: selectedCount ?? 1,
                                 currentTitle: work?.title ?? series?.title,
                                 detail: "Waiting for the courteous global request queue")
+        await beginOrRefreshDownloadJob(destination: destination)
         if let series {
             let verified = Set(downloadedParts.map { $0.work.id })
             let failed = Set(currentFailures.map(\.workID))
@@ -312,6 +319,10 @@ final class NewDownloadViewModel: ObservableObject {
                 let chapters = work.chapterCountPublished.map { " • \($0) chapter\($0 == 1 ? "" : "s")" } ?? ""
                 activeOperation?.detail = "Verified complete work\(chapters)"
                 status = "Download completed and verified."
+                if let fileURL = outputURL {
+                    await finishDownloadJob(state: .completed, outputFiles: [fileURL],
+                                            detail: "Verified complete book")
+                }
                 if let fileURL = outputURL { await saveSingleWork(work: work, fileURL: fileURL, destination: destination) }
             } else if let series {
                 let result = try await dependencies.manager.download(series: series, format: format,
@@ -330,6 +341,11 @@ final class NewDownloadViewModel: ObservableObject {
                 downloadedParts = result.downloadedParts
                 currentFailures = result.failures
                 await saveSeriesResult(result, series: self.series ?? series)
+                await finishDownloadJob(state: result.isPartial ? .completedPartial : .completed,
+                                        outputFiles: result.outputFiles + (result.combinedFile.map { [$0] } ?? []),
+                                        detail: result.isPartial
+                                            ? "Finished with \(result.failures.count) part(s) needing attention"
+                                            : "All selected works verified")
                 if self.series?.orderedWorks.contains(where: { $0.selected && $0.accessState == .publicAccess }) == false {
                     status = "No parts remain selected. Verified downloads were retained in Library."
                 } else if let combined = result.combinedFile, !result.failures.isEmpty {
@@ -350,10 +366,13 @@ final class NewDownloadViewModel: ObservableObject {
             activeOperation?.stage = .cancelled
             activeOperation?.detail = "Stopped by user; already verified files were retained"
             status = "Operation cancelled. Already verified files were retained."
+            await finishDownloadJob(state: .cancelled, outputFiles: [],
+                                    detail: "Cancelled; verified files were retained")
         } catch {
             activeOperation?.stage = .failed
             activeOperation?.detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             status = activeOperation?.detail ?? error.localizedDescription
+            await failDownloadJob(error.localizedDescription)
         }
     }
 
@@ -370,13 +389,27 @@ final class NewDownloadViewModel: ObservableObject {
         if currentLibraryRecordID == nil, let series {
             await saveSeriesCheckpoint(series: series, directory: progress.outputDirectory)
         }
+        await updateDownloadJob(stage: progress.stage, completed: progress.completedCount,
+                                total: progress.totalCount, currentTitle: progress.currentTitle,
+                                detail: activeOperation?.detail)
     }
 
-    private func applyWorkDownloadProgress(_ progress: WorkDownloadProgress) {
+    private func applyWorkDownloadProgress(_ progress: WorkDownloadProgress) async {
+        activeOperation?.stage = progress.stage
         activeOperation?.totalCount = progress.totalChapters
         activeOperation?.completedCount = progress.completedChapters
         activeOperation?.currentTitle = progress.currentChapterTitle
-        activeOperation?.detail = "Fetched \(progress.completedChapters) of \(progress.totalChapters) chapter\(progress.totalChapters == 1 ? "" : "s")"
+        switch progress.stage {
+        case .assembling:
+            activeOperation?.detail = "All \(progress.totalChapters) chapters fetched • building the book"
+        case .verifying:
+            activeOperation?.detail = "Book assembled • validating the final file"
+        default:
+            activeOperation?.detail = "Fetched \(progress.completedChapters) of \(progress.totalChapters) chapter\(progress.totalChapters == 1 ? "" : "s")"
+        }
+        await updateDownloadJob(stage: progress.stage, completed: progress.completedChapters,
+                                total: progress.totalChapters, currentTitle: progress.currentChapterTitle,
+                                detail: activeOperation?.detail)
     }
 
     private func recordCompletedPart(_ part: DownloadedPart) async {
@@ -385,6 +418,7 @@ final class NewDownloadViewModel: ObservableObject {
         downloadedParts.sort { $0.entry.position < $1.entry.position }
         currentFailures.removeAll { $0.workID == part.work.id }
         seriesItemStates[part.work.id] = .completed
+        await appendDownloadJobOutput(part.fileURL)
         if let series, let directory = outputURL { await saveSeriesCheckpoint(series: series, directory: directory) }
     }
 
@@ -685,6 +719,195 @@ final class NewDownloadViewModel: ObservableObject {
         pendingReanalysisRecord = record
         input = record.sourceURL.absoluteString
         startAnalyze()
+    }
+
+    func retryDownloadJob(_ id: UUID) {
+        guard operationTask == nil,
+              let job = downloadJobs.first(where: { $0.id == id }),
+              job.state == .failed || job.state == .cancelled || job.state == .completedPartial else { return }
+        let resolvedDestination = SecurityScopedLocation.resolve(job.destinationBookmark, fallback: job.destination)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: resolvedDestination.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            status = "The saved destination folder is unavailable. Start a new download and choose a folder."
+            return
+        }
+        _ = resolvedDestination.startAccessingSecurityScopedResource()
+        currentDownloadJobID = id
+        input = job.source.canonicalURL.absoluteString
+        format = job.format
+        seriesOutputMode = job.outputMode ?? .separate
+        destination = resolvedDestination
+        work = nil
+        series = nil
+        outputURL = nil
+        downloadedParts = []
+        currentFailures = []
+        isViewingLibraryRecord = false
+        currentLibraryRecordID = nil
+        isBusy = true
+        operationTask = Task { [weak self] in
+            guard let self else { return }
+            await self.setDownloadJobState(id, state: .analyzing, detail: "Reanalyzing before retry")
+            await self.analyze()
+            guard !Task.isCancelled, self.activeOperation?.stage == .completed,
+                  self.work != nil || self.series != nil else {
+                if self.activeOperation?.stage == .failed {
+                    await self.failDownloadJob(self.activeOperation?.detail ?? "Analysis failed")
+                } else if Task.isCancelled || self.activeOperation?.stage == .cancelled {
+                    await self.finishDownloadJob(state: .cancelled, outputFiles: [],
+                                                 detail: "Retry cancelled during analysis")
+                }
+                self.currentDownloadJobID = nil
+                self.operationTask = nil
+                return
+            }
+            self.isBusy = true
+            await self.download()
+            self.currentDownloadJobID = nil
+            self.operationTask = nil
+        }
+    }
+
+    func removeDownloadJob(_ id: UUID) {
+        guard !isBusy, downloadJobs.first(where: { $0.id == id })?.state.isTerminal == true else { return }
+        downloadJobs.removeAll { $0.id == id }
+        Task { [weak self] in await self?.persistDownloadJobs() }
+    }
+
+    private func beginOrRefreshDownloadJob(destination: URL) async {
+        guard let sourceURL = work?.sourceURL ?? series?.sourceURL,
+              let source = try? SourceURLParser().parse(sourceURL.absoluteString) else { return }
+        let title = work?.title ?? series?.title ?? "Untitled"
+        let total = work?.chapterCountPublished
+            ?? series?.orderedWorks.filter { $0.selected && $0.accessState == .publicAccess }.count
+            ?? 1
+        if let id = currentDownloadJobID,
+           let index = downloadJobs.firstIndex(where: { $0.id == id }) {
+            downloadJobs[index].source = source
+            downloadJobs[index].format = format
+            downloadJobs[index].destination = destination
+            downloadJobs[index].destinationBookmark = SecurityScopedLocation.bookmark(for: destination)
+            downloadJobs[index].state = .downloading
+            downloadJobs[index].title = title
+            downloadJobs[index].completedUnitCount = 0
+            downloadJobs[index].totalUnitCount = total
+            downloadJobs[index].currentUnitTitle = title
+            downloadJobs[index].statusDetail = "Waiting for the courteous global request queue"
+            downloadJobs[index].errorMessage = nil
+            downloadJobs[index].outputMode = series == nil ? nil : seriesOutputMode
+            downloadJobs[index].lastUpdatedAt = .now
+        } else {
+            let job = DownloadJob(id: UUID(), source: source, format: format, destination: destination,
+                                  state: .downloading, outputFiles: [], errorMessage: nil,
+                                  createdAt: .now, lastUpdatedAt: .now, title: title,
+                                  destinationBookmark: SecurityScopedLocation.bookmark(for: destination),
+                                  completedUnitCount: 0, totalUnitCount: total,
+                                  currentUnitTitle: title,
+                                  statusDetail: "Waiting for the courteous global request queue",
+                                  outputMode: series == nil ? nil : seriesOutputMode)
+            downloadJobs.insert(job, at: 0)
+            currentDownloadJobID = job.id
+        }
+        await persistDownloadJobs()
+    }
+
+    private func updateDownloadJob(stage: OperationStage, completed: Int, total: Int,
+                                   currentTitle: String?, detail: String?) async {
+        guard let id = currentDownloadJobID,
+              let index = downloadJobs.firstIndex(where: { $0.id == id }) else { return }
+        downloadJobs[index].state = jobState(for: stage)
+        downloadJobs[index].completedUnitCount = completed
+        downloadJobs[index].totalUnitCount = total
+        downloadJobs[index].currentUnitTitle = currentTitle
+        downloadJobs[index].statusDetail = detail
+        downloadJobs[index].lastUpdatedAt = .now
+        await persistDownloadJobs()
+    }
+
+    private func finishDownloadJob(state: DownloadJobState, outputFiles: [URL], detail: String) async {
+        guard let id = currentDownloadJobID,
+              let index = downloadJobs.firstIndex(where: { $0.id == id }) else { return }
+        downloadJobs[index].state = state
+        if state == .completed || state == .completedPartial {
+            downloadJobs[index].completedUnitCount = downloadJobs[index].totalUnitCount
+        }
+        downloadJobs[index].currentUnitTitle = nil
+        downloadJobs[index].statusDetail = detail
+        downloadJobs[index].errorMessage = nil
+        if !outputFiles.isEmpty || state == .completed || state == .completedPartial {
+            downloadJobs[index].outputFiles = outputFiles
+        }
+        downloadJobs[index].lastUpdatedAt = .now
+        await persistDownloadJobs()
+    }
+
+    private func failDownloadJob(_ message: String) async {
+        guard let id = currentDownloadJobID,
+              let index = downloadJobs.firstIndex(where: { $0.id == id }) else { return }
+        downloadJobs[index].state = .failed
+        downloadJobs[index].statusDetail = "Stopped at the last saved checkpoint"
+        downloadJobs[index].errorMessage = message
+        downloadJobs[index].lastUpdatedAt = .now
+        await persistDownloadJobs()
+    }
+
+    private func setDownloadJobState(_ id: UUID, state: DownloadJobState, detail: String) async {
+        guard let index = downloadJobs.firstIndex(where: { $0.id == id }) else { return }
+        downloadJobs[index].state = state
+        downloadJobs[index].statusDetail = detail
+        downloadJobs[index].errorMessage = nil
+        downloadJobs[index].lastUpdatedAt = .now
+        await persistDownloadJobs()
+    }
+
+    private func appendDownloadJobOutput(_ fileURL: URL) async {
+        guard let id = currentDownloadJobID,
+              let index = downloadJobs.firstIndex(where: { $0.id == id }) else { return }
+        if !downloadJobs[index].outputFiles.contains(fileURL) {
+            downloadJobs[index].outputFiles.append(fileURL)
+            downloadJobs[index].lastUpdatedAt = .now
+            await persistDownloadJobs()
+        }
+    }
+
+    private func jobState(for stage: OperationStage) -> DownloadJobState {
+        switch stage {
+        case .validating, .fetching: .analyzing
+        case .downloading: .downloading
+        case .assembling: .assembling
+        case .verifying: .verifying
+        case .completed: .completed
+        case .cancelled: .cancelled
+        case .failed: .failed
+        }
+    }
+
+    private func loadDownloadJobs() async {
+        do {
+            downloadJobs = try await dependencies.persistence.load().sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            var recoveredInterruptedJob = false
+            for index in downloadJobs.indices where !downloadJobs[index].state.isTerminal {
+                downloadJobs[index].state = .failed
+                downloadJobs[index].errorMessage = "ArchiveBind closed before this download finished. Retry to start safely from the source."
+                downloadJobs[index].statusDetail = "Interrupted after the last saved checkpoint"
+                downloadJobs[index].lastUpdatedAt = .now
+                recoveredInterruptedJob = true
+            }
+            if recoveredInterruptedJob { await persistDownloadJobs() }
+        } catch {
+            downloadJobs = []
+            status = "Activity recovery failed: \(error.localizedDescription). Downloaded files were not changed."
+        }
+    }
+
+    private func persistDownloadJobs() async {
+        do {
+            downloadJobs.sort { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            try await dependencies.persistence.save(downloadJobs)
+        } catch {
+            status = "Activity checkpoint could not be saved: \(error.localizedDescription). The download continues."
+        }
     }
 
     private func loadHistory() async {

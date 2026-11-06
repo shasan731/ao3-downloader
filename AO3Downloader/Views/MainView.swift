@@ -13,10 +13,11 @@ struct MainView: View {
     }
 
     @State private var selection: Section? = .new
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @StateObject private var downloadModel = NewDownloadViewModel()
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selection) {
                 SwiftUI.Section("Workspace") {
                     sidebarItem(.new)
@@ -36,6 +37,11 @@ struct MainView: View {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .windowBackgroundColor))
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if let operation = downloadModel.activeOperation, downloadModel.isBusy {
+                        compactOperationBar(operation)
+                    }
+                }
         }
         .onChange(of: selection) { _, section in
             if section == .new {
@@ -47,6 +53,7 @@ struct MainView: View {
                 downloadModel.prepareNewDownloadWorkspace()
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, minHeight: 520)
     }
 
@@ -90,6 +97,14 @@ struct MainView: View {
                 ProgressView()
                     .controlSize(.small)
                     .accessibilityLabel("Operation in progress")
+            } else if section == .queue {
+                let attention = downloadModel.downloadJobs.filter { $0.state == .failed || $0.state == .completedPartial }.count
+                if attention > 0 {
+                    Text(attention.formatted())
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("\(attention) download activities need attention")
+                }
             } else if section == .history && !downloadModel.historyRecords.isEmpty {
                 Text(downloadModel.historyRecords.count.formatted())
                     .font(.caption.monospacedDigit())
@@ -97,6 +112,33 @@ struct MainView: View {
             }
         }
         .tag(section)
+    }
+
+    private func compactOperationBar(_ operation: ActiveOperation) -> some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Operation in progress")
+            VStack(alignment: .leading, spacing: 1) {
+                Text(operation.stage.rawValue).font(.callout.weight(.medium))
+                if let total = operation.totalCount, total > 0 {
+                    Text("\(min(operation.completedCount, total)) of \(total) • \(operation.detail)")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                } else {
+                    Text(operation.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            Button("View Activity") {
+                selection = .queue
+                columnVisibility = .all
+            }
+            Button("Cancel", role: .destructive) { downloadModel.cancelOperation() }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 
     private func icon(_ section: Section) -> String {

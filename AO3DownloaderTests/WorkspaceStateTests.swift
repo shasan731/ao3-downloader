@@ -9,6 +9,36 @@ private struct WorkspaceTestProvider: AO3Providing {
 
 @MainActor
 final class WorkspaceStateTests: XCTestCase {
+    func testInterruptedActivityRecoversWithoutPopulatingNewDownload() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let persistence = DownloadPersistence(fileURL: root.appendingPathComponent("jobs.json"))
+        let link = try FanFictionURLParser().parse("https://www.fanfiction.net/s/123/1/example")
+        let job = DownloadJob(id: UUID(), source: link, format: .epub, destination: root,
+                              state: .downloading, outputFiles: [], createdAt: .now, lastUpdatedAt: .now,
+                              title: "Interrupted story", completedUnitCount: 4, totalUnitCount: 10,
+                              currentUnitTitle: "Chapter 5", statusDetail: "Fetched 4 of 10 chapters")
+        try await persistence.save([job])
+        let provider = WorkspaceTestProvider()
+        let model = NewDownloadViewModel(dependencies: .init(
+            provider: provider,
+            manager: DownloadManager(provider: provider),
+            persistence: persistence,
+            libraryStore: LibraryStore(fileURL: root.appendingPathComponent("library.json"))
+        ))
+
+        for _ in 0..<100 where model.downloadJobs.isEmpty { await Task.yield() }
+
+        XCTAssertEqual(model.downloadJobs.first?.state, .failed)
+        XCTAssertEqual(model.downloadJobs.first?.completedUnitCount, 4)
+        XCTAssertEqual(model.downloadJobs.first?.totalUnitCount, 10)
+        XCTAssertNotNil(model.downloadJobs.first?.errorMessage)
+        XCTAssertEqual(model.input, "")
+        XCTAssertNil(model.work)
+        XCTAssertNil(model.series)
+    }
+
     func testNewDownloadClearsIdleLibraryContextWithoutDeletingHistory() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

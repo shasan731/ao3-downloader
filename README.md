@@ -27,6 +27,7 @@
 - Build book-quality combined EPUB/PDF editions with linked contents, story and chapter navigation, title pages, and PDF bookmarks.
 - Retry individual failures without losing successful parts, then combine when the chosen set is complete.
 - Keep a durable local Library for metadata editing, custom covers, recombination, and discovering newly added series parts.
+- Follow chapter/part progress from any section; Activity preserves the last checkpoint and offers a safe retry if the app or download is interrupted.
 - Follow a courteous globally serialized request queue with persistent server-directed cooldowns.
 - Stay private: no telemetry, cloud account, password collection, cookie import, or story-content logging.
 
@@ -55,7 +56,7 @@ ArchiveBind currently targets Apple silicon and macOS 14 or later. The Actions p
 
 ## Quick start
 
-Paste a public AO3 work/chapter/series URL or a `www.fanfiction.net/s/…` story URL into **New Download**, select **Analyze**, review the results, choose a destination and output format, then download. Activity continues if you open another section. FanFiction.net chapters are fetched one at a time through the same courteous global queue and assembled locally. For a saved AO3 series, use **Library** to retry failures, adjust its selected parts, edit metadata, reanalyze for additions, or make another combined edition.
+Paste a public AO3 work/chapter/series URL or a `www.fanfiction.net/s/…` story URL into **New Download**, select **Analyze**, review the results, choose a destination and output format, then download. Activity continues if you open another section, and a compact progress bar remains visible throughout the app. FanFiction.net chapters are fetched one at a time through the same courteous global queue and assembled locally. If ArchiveBind closes before finishing, **Activity** shows the last saved chapter/part count and a Retry action after relaunch. For a saved AO3 series, use **Library** to retry failures, adjust its selected parts, edit metadata, reanalyze for additions, or make another combined edition.
 
 Public AO3 Mature/Explicit warning pages require the explicit consent toggle. Login-only works, browser-session reuse, verification/CAPTCHA bypass, and mirror fallback are intentionally unsupported. FanFiction.net may present Cloudflare browser verification; ArchiveBind reports that condition and does not bypass it.
 

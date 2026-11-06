@@ -73,6 +73,8 @@ final class FanFictionClient: AO3Providing, @unchecked Sendable {
             chapters.append(chapter)
             await progress(.init(completedChapters: number, totalChapters: total, currentChapterTitle: title))
         }
+        await progress(.init(completedChapters: total, totalChapters: total,
+                             currentChapterTitle: work.title, stage: .assembling))
         return try await FanFictionBookBuilder().build(work: work, chapters: chapters, format: format)
     }
 

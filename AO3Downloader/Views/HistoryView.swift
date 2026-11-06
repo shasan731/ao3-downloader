@@ -29,9 +29,9 @@ struct HistoryView: View {
             } else {
                 HSplitView {
                     libraryList
-                        .frame(minWidth: 230, idealWidth: 280, maxWidth: 360)
+                        .frame(minWidth: 180, idealWidth: 230, maxWidth: 320)
                     detail
-                        .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
