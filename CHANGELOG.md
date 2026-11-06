@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11-06)
 
 - Added durable Activity checkpoints for single stories and series, including chapter/part counts, current phase, failure details, completed outputs, and interrupted-download recovery after relaunch.
 - Added one-click retry for interrupted Activity entries, a compact operation bar visible from every sidebar destination, clearer local book-building and verification phases, and an attention badge.
